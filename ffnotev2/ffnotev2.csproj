@@ -10,6 +10,10 @@
     <AssemblyName>ffnotev2</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <!-- WinForms implicit using 제거: System.Windows.Input과 MouseEventArgs 충돌 방지 -->
+    <Using Remove="System.Windows.Forms" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
   </ItemGroup>
