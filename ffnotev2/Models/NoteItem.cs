@@ -2,7 +2,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace ffnotev2.Models;
 
-public enum NoteType { Text, Image, Link }
+public enum NoteType
+{
+    Text,
+    Image,
+    Link
+}
 
 public partial class NoteItem : ObservableObject
 {
@@ -10,12 +15,21 @@ public partial class NoteItem : ObservableObject
     public int NotebookId { get; set; }
     public NoteType Type { get; set; }
 
-    [ObservableProperty] private string? _content;
-    [ObservableProperty] private double _x;
-    [ObservableProperty] private double _y;
-    [ObservableProperty] private double _width = 220;
-    [ObservableProperty] private double _height = 130;
+    [ObservableProperty]
+    private string content = string.Empty;
 
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
-    public DateTime UpdatedAt { get; set; } = DateTime.Now;
+    [ObservableProperty]
+    private double x;
+
+    [ObservableProperty]
+    private double y;
+
+    [ObservableProperty]
+    private double width = 200;
+
+    [ObservableProperty]
+    private double height = 100;
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

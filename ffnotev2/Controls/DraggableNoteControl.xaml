@@ -2,91 +2,91 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:ffnotev2.Converters"
-             Width="{Binding Width}" Height="{Binding Height}"
-             Loaded="OnLoaded">
+             Width="{Binding Width}" Height="{Binding Height}">
     <UserControl.Resources>
         <conv:NoteTypeToVisibilityConverter x:Key="TypeVis"/>
-        <conv:PathToImageConverter x:Key="PathImg"/>
+        <conv:PathToImageConverter x:Key="PathToImage"/>
     </UserControl.Resources>
-
-    <Border Background="#2D2D2D" BorderBrush="#484848" BorderThickness="1" CornerRadius="5">
+    <Border Background="#FF2C2C2C" BorderBrush="#FF555555" BorderThickness="1" CornerRadius="4">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="22"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <!-- 드래그 핸들 (타이틀 바) -->
-            <Border Grid.Row="0" Background="#383838" CornerRadius="5,5,0,0"
+            <!-- 타이틀바 (드래그 영역) -->
+            <Border Grid.Row="0" Background="#FF3C3C3C" CornerRadius="4,4,0,0"
                     MouseLeftButtonDown="TitleBar_MouseLeftButtonDown"
-                    MouseLeftButtonUp="TitleBar_MouseLeftButtonUp"
                     MouseMove="TitleBar_MouseMove"
+                    MouseLeftButtonUp="TitleBar_MouseLeftButtonUp"
                     Cursor="SizeAll">
-                <DockPanel Margin="6,0,2,0">
-                    <TextBlock DockPanel.Dock="Left"
-                               Text="{Binding Type}" Foreground="#666"
-                               FontSize="9" VerticalAlignment="Center"/>
-                    <Button DockPanel.Dock="Right" Content="✕"
-                            Click="Delete_Click"
-                            Background="Transparent" BorderThickness="0"
-                            Foreground="#666" FontSize="10" Padding="4,0"
-                            Cursor="Hand" VerticalAlignment="Center">
-                        <Button.Style>
-                            <Style TargetType="Button">
-                                <Setter Property="Background" Value="Transparent"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
-                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                            </Border>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                                <Style.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="#CC3333"/>
-                                        <Setter Property="Foreground" Value="White"/>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-                </DockPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding Type}" Foreground="#FFAAAAAA"
+                               VerticalAlignment="Center" Margin="6,0,0,0" FontSize="11"/>
+                    <Button Grid.Column="1" Content="×" Width="22" Height="22"
+                            Background="Transparent" BorderThickness="0" Foreground="#FFCCCCCC"
+                            Click="Delete_Click"/>
+                </Grid>
             </Border>
 
-            <!-- 내용 영역 -->
-            <Grid Grid.Row="1" Margin="6,4,6,6">
-
-                <!-- 텍스트 노트 -->
-                <TextBox x:Name="TextBox"
-                         Visibility="{Binding Type, Converter={StaticResource TypeVis}, ConverterParameter=Text}"
-                         Text="{Binding Content, UpdateSourceTrigger=PropertyChanged}"
-                         Background="Transparent" BorderThickness="0"
-                         Foreground="#E0E0E0" FontSize="12"
-                         TextWrapping="Wrap" AcceptsReturn="True"
-                         VerticalScrollBarVisibility="Auto"
-                         IsReadOnly="True"
-                         MouseDoubleClick="TextBox_MouseDoubleClick"
-                         LostFocus="TextBox_LostFocus"
-                         CaretBrush="#E0E0E0"
-                         SelectionBrush="#5B9BD5"/>
-
-                <!-- 이미지 노트 -->
+            <!-- 콘텐츠 영역 -->
+            <Grid Grid.Row="1">
+                <!-- 텍스트: 표시(TextBlock)와 편집(TextBox)을 스왑해서 IME 컨텍스트 버그 회피 -->
+                <Grid Visibility="{Binding Type, Converter={StaticResource TypeVis}, ConverterParameter=Text}">
+                    <ScrollViewer x:Name="TextDisplayScroll"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="6">
+                        <TextBlock x:Name="TextDisplay"
+                                   Text="{Binding Content}"
+                                   Foreground="#FFEEEEEE"
+                                   TextWrapping="Wrap"
+                                   MouseLeftButtonDown="TextDisplay_MouseLeftButtonDown"/>
+                    </ScrollViewer>
+                    <TextBox x:Name="TextEditor"
+                             Visibility="Collapsed"
+                             Text="{Binding Content, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             Background="Transparent"
+                             Foreground="#FFEEEEEE"
+                             BorderThickness="0"
+                             Padding="6"
+                             InputMethod.IsInputMethodEnabled="True"
+                             InputMethod.PreferredImeState="On"
+                             LostFocus="TextEditor_LostFocus"
+                             PreviewKeyDown="TextEditor_PreviewKeyDown"/>
+                </Grid>
+                <!-- 이미지 -->
                 <Image Visibility="{Binding Type, Converter={StaticResource TypeVis}, ConverterParameter=Image}"
-                       Source="{Binding Content, Converter={StaticResource PathImg}}"
-                       Stretch="Uniform" StretchDirection="DownOnly"/>
-
-                <!-- 링크 노트 -->
+                       Source="{Binding Content, Converter={StaticResource PathToImage}}"
+                       Stretch="Uniform"/>
+                <!-- 링크 -->
                 <TextBlock Visibility="{Binding Type, Converter={StaticResource TypeVis}, ConverterParameter=Link}"
-                           TextWrapping="Wrap" VerticalAlignment="Center">
-                    <Hyperlink NavigateUri="{Binding Content}"
-                               RequestNavigate="Hyperlink_RequestNavigate"
-                               Foreground="#5B9BD5">
+                           VerticalAlignment="Center" Margin="8" TextWrapping="Wrap">
+                    <Hyperlink NavigateUri="{Binding Content}" RequestNavigate="Hyperlink_RequestNavigate">
                         <Run Text="{Binding Content}"/>
                     </Hyperlink>
                 </TextBlock>
             </Grid>
+
+            <!-- 리사이즈 핸들 (우하단) -->
+            <Thumb Grid.Row="1" Width="14" Height="14"
+                   HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                   Cursor="SizeNWSE"
+                   DragDelta="ResizeThumb_DragDelta"
+                   DragCompleted="ResizeThumb_DragCompleted">
+                <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb">
+                        <Path Data="M 0,14 L 14,14 L 14,0 Z" Fill="#FF777777"/>
+                    </ControlTemplate>
+                </Thumb.Template>
+            </Thumb>
         </Grid>
     </Border>
 </UserControl>

@@ -1,48 +1,43 @@
-using ffnotev2.Services;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using ffnotev2.Services;
 
 namespace ffnotev2.Dialogs;
 
 public partial class GamePickerDialog : Window
 {
+    private readonly GameDetectionService _gameDetection;
+
     public string? SelectedProcessName { get; private set; }
 
-    public GamePickerDialog()
+    public GamePickerDialog(GameDetectionService gameDetection)
     {
+        ArgumentNullException.ThrowIfNull(gameDetection);
+        _gameDetection = gameDetection;
         InitializeComponent();
         LoadProcesses();
     }
 
     private void LoadProcesses()
     {
-        var processes = GameDetectionService.GetRunningWindowedProcesses();
-        ProcessList.ItemsSource = processes;
+        ProcessList.ItemsSource = _gameDetection.GetRunningWindowedProcesses()
+            .Select(p => new { p.ProcessName, p.WindowTitle })
+            .ToList();
     }
 
     private void Refresh_Click(object sender, RoutedEventArgs e) => LoadProcesses();
 
-    private void Select_Click(object sender, RoutedEventArgs e)
-    {
-        if (ProcessList.SelectedItem is ProcessInfo info)
-        {
-            SelectedProcessName = info.ProcessName;
-            DialogResult = true;
-        }
-        else
-        {
-            MessageBox.Show("프로세스를 선택해주세요.", "ffnote v2", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-    }
+    private void Select_Click(object sender, RoutedEventArgs e) => Confirm();
 
-    private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
+    private void ProcessList_MouseDoubleClick(object sender, MouseButtonEventArgs e) => Confirm();
 
-    private void ProcessList_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private void Confirm()
     {
-        if (ProcessList.SelectedItem is ProcessInfo info)
-        {
-            SelectedProcessName = info.ProcessName;
-            DialogResult = true;
-        }
+        if (ProcessList.SelectedItem is null) return;
+        var item = ProcessList.SelectedItem;
+        SelectedProcessName = item.GetType().GetProperty("ProcessName")?.GetValue(item) as string;
+        DialogResult = true;
+        Close();
     }
 }

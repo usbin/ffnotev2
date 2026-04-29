@@ -7,9 +7,13 @@ public partial class NoteBook : ObservableObject
 {
     public int Id { get; set; }
 
-    [ObservableProperty] private string _name = string.Empty;
-    [ObservableProperty] private string? _processName;
+    [ObservableProperty]
+    private string name = string.Empty;
 
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
-    public ObservableCollection<NoteItem> Notes { get; set; } = new();
+    [ObservableProperty]
+    private string? processName;
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public ObservableCollection<NoteItem> Notes { get; } = new();
 }

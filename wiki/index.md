@@ -4,7 +4,7 @@
 게임 플레이 중 자유 캔버스 기반으로 텍스트·이미지·링크를 러프하게 기록하는 Windows 데스크톱 노트 앱.  
 게임별 노트북 분리, 게임 프로세스 자동 감지, 글로벌 단축키, 반투명 오버레이 입력창을 제공한다.
 
-**기술 스택**: C# / .NET 8 / WPF + SQLite (Microsoft.Data.Sqlite) + CommunityToolkit.Mvvm
+**기술 스택**: C# / .NET 10 / WPF + SQLite (Microsoft.Data.Sqlite) + CommunityToolkit.Mvvm
 
 ## wiki 페이지
 

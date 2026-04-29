@@ -4,45 +4,63 @@ using System.Windows.Interop;
 
 namespace ffnotev2.Services;
 
-public static class HotkeyModifiers
+[Flags]
+public enum HotkeyModifiers : uint
 {
-    public const uint Alt = 0x0001;
-    public const uint Control = 0x0002;
-    public const uint Shift = 0x0004;
-    public const uint NoRepeat = 0x4000;
+    None = 0x0000,
+    Alt = 0x0001,
+    Control = 0x0002,
+    Shift = 0x0004,
+    Win = 0x0008,
+    NoRepeat = 0x4000
 }
 
-public class HotkeyService : IDisposable
+public partial class HotkeyService : IDisposable
 {
     private const int WM_HOTKEY = 0x0312;
 
-    [DllImport("user32.dll")]
-    private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
 
-    [DllImport("user32.dll")]
-    private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool UnregisterHotKey(IntPtr hWnd, int id);
 
+    private readonly Dictionary<int, Action> _callbacks = new();
     private HwndSource? _source;
-    private readonly Dictionary<int, Action> _hotkeys = [];
-    private int _nextId = 9000;
+    private IntPtr _hwnd;
+    private int _nextId = 1;
 
+    /// <summary>OnSourceInitialized 시점에서만 호출 가능.</summary>
     public void Initialize(Window window)
     {
+        ArgumentNullException.ThrowIfNull(window);
         var helper = new WindowInteropHelper(window);
-        _source = HwndSource.FromHwnd(helper.Handle);
-        _source.AddHook(HwndHook);
+        _hwnd = helper.Handle;
+        if (_hwnd == IntPtr.Zero)
+            throw new InvalidOperationException("HotkeyService.Initialize는 OnSourceInitialized 이후에만 호출하세요.");
+
+        _source = HwndSource.FromHwnd(_hwnd);
+        _source?.AddHook(HwndHook);
     }
 
-    public void Register(uint modifiers, uint vk, Action callback)
+    public bool Register(HotkeyModifiers modifiers, uint virtualKey, Action callback)
     {
-        int id = _nextId++;
-        if (RegisterHotKey(_source!.Handle, id, modifiers | HotkeyModifiers.NoRepeat, vk))
-            _hotkeys[id] = callback;
+        ArgumentNullException.ThrowIfNull(callback);
+        if (_hwnd == IntPtr.Zero)
+            throw new InvalidOperationException("Initialize()를 먼저 호출하세요.");
+
+        var id = _nextId++;
+        if (!RegisterHotKey(_hwnd, id, (uint)modifiers, virtualKey))
+            return false;
+        _callbacks[id] = callback;
+        return true;
     }
 
     private IntPtr HwndHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (msg == WM_HOTKEY && _hotkeys.TryGetValue(wParam.ToInt32(), out var action))
+        if (msg == WM_HOTKEY && _callbacks.TryGetValue(wParam.ToInt32(), out var action))
         {
             action();
             handled = true;
@@ -50,11 +68,22 @@ public class HotkeyService : IDisposable
         return IntPtr.Zero;
     }
 
+    public void UnregisterAll()
+    {
+        if (_hwnd != IntPtr.Zero)
+        {
+            foreach (var id in _callbacks.Keys)
+                UnregisterHotKey(_hwnd, id);
+        }
+        _callbacks.Clear();
+        _nextId = 1;
+    }
+
     public void Dispose()
     {
-        if (_source == null) return;
-        foreach (var id in _hotkeys.Keys)
-            UnregisterHotKey(_source.Handle, id);
-        _source.RemoveHook(HwndHook);
+        UnregisterAll();
+        _source?.RemoveHook(HwndHook);
+        _source = null;
+        GC.SuppressFinalize(this);
     }
 }
