@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Windows;
 using System.Windows.Forms;
+using System.Windows.Interop;
 using ffnotev2.Dialogs;
 using ffnotev2.Services;
 using ffnotev2.ViewModels;
@@ -48,14 +49,29 @@ public partial class App : Application
         OverlayVM = new OverlayViewModel(MainVM, SettingsService);
 
         _mainWindow = new MainWindow();
-        _mainWindow.Show();
+        // HWND를 강제 생성 → OnSourceInitialized 발생 → 글로벌 핫키 등록.
+        // Show를 하지 않으므로 창은 보이지 않음. 트레이만 떠있는 상태.
+        new WindowInteropHelper(_mainWindow).EnsureHandle();
 
         _overlayWindow = new OverlayWindow();
-        _overlayWindow.Show();
+        // 오버레이는 첫 Show 시 Loaded에서 위치/투명도 복원. 시작 시엔 안 띄움.
 
         SetupTray();
 
+        // 게임 감지 시 메인+오버레이 자동 표시
+        GameDetectionService.GameDetected += OnGameDetectedShowWindows;
         GameDetectionService.Start();
+    }
+
+    private void OnGameDetectedShowWindows(object? sender, GameDetectedEventArgs e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (_mainWindow is not null && !_mainWindow.IsVisible)
+                _mainWindow.Show();
+            if (_overlayWindow is not null && !_overlayWindow.IsVisible)
+                _overlayWindow.Show();
+        });
     }
 
     private void SetupTray()

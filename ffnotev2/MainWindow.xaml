@@ -35,13 +35,21 @@
                          Background="Transparent" Foreground="#FFEEEEEE" BorderThickness="0">
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type m:NoteBook}">
-                            <Grid>
+                            <Grid Margin="0,2,0,2">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Name}"/>
+                                    <TextBlock FontSize="10" Foreground="#FF888888"
+                                               Text="{Binding ProcessName,
+                                                       StringFormat='🎮 {0}',
+                                                       FallbackValue='(연동 없음)',
+                                                       TargetNullValue='(연동 없음)'}"/>
+                                </StackPanel>
                                 <Button Grid.Column="1" Content="⋯" Width="22" Height="22"
+                                        VerticalAlignment="Top"
                                         Background="Transparent" BorderThickness="0" Foreground="#FFCCCCCC"
                                         Click="NotebookMenu_Click" Tag="{Binding}"/>
                             </Grid>

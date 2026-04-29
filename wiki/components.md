@@ -32,7 +32,7 @@
 | 파일 | 설명 |
 |------|------|
 | Controls/DraggableNoteControl | 타이틀바 드래그로 이동, 우하단 Thumb로 리사이즈(min 80×40), 타입별 내용 표시(텍스트는 TextBlock↔TextBox 스왑/이미지/Hyperlink), 더블클릭 텍스트 편집, × 삭제 |
-| MainWindow | 전체 레이아웃 (사이드바 + Canvas), Ctrl+V 붙여넣기 분기, 캔버스 우클릭 → "새 텍스트 노트", 글로벌 단축키 등록(`OnSourceInitialized` + `ReregisterHotkeys`), 닫기 시 트레이로 숨김 |
+| MainWindow | 전체 레이아웃 (사이드바 + Canvas), 사이드바 노트북 항목에 연동 ProcessName 표시, Ctrl+V 붙여넣기 분기, 캔버스 우클릭 → "새 텍스트 노트", 글로벌 단축키 등록(`OnSourceInitialized` + `ReregisterHotkeys`), 닫기 시 트레이로 숨김 |
 | OverlayWindow | Topmost 반투명 창, 멀티라인 입력 (Shift+Enter 줄바꿈, Enter 제출), Esc 숨기기, 드래그 이동, 우클릭 → 투명도 ±10%/기본값, 클릭 패스스루 토글 |
 | Dialogs/GamePickerDialog | 실행 중 프로세스 목록 표시, 더블클릭 또는 선택 버튼으로 연동 |
 | Dialogs/RenameDialog | 노트북 이름 변경 입력창 |

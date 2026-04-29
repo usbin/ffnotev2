@@ -95,6 +95,14 @@ public partial class MainWindow : Window
         if (sender is not Button btn || btn.Tag is not NoteBook nb) return;
 
         var menu = new ContextMenu();
+
+        // 현재 연동 상태 표시 (비활성 헤더)
+        var currentLabel = string.IsNullOrEmpty(nb.ProcessName)
+            ? "현재 연동: (없음)"
+            : $"현재 연동: {nb.ProcessName}";
+        menu.Items.Add(new MenuItem { Header = currentLabel, IsEnabled = false });
+        menu.Items.Add(new Separator());
+
         var rename = new MenuItem { Header = "이름 변경" };
         rename.Click += (_, _) =>
         {
@@ -102,7 +110,10 @@ public partial class MainWindow : Window
             if (dlg.ShowDialog() == true)
                 App.MainVM.RenameNotebook(nb, dlg.EnteredName);
         };
-        var setProcess = new MenuItem { Header = "게임 프로세스 연동" };
+        var setProcessHeader = string.IsNullOrEmpty(nb.ProcessName)
+            ? "게임 프로세스 연동..."
+            : "다른 프로세스로 변경...";
+        var setProcess = new MenuItem { Header = setProcessHeader };
         setProcess.Click += (_, _) =>
         {
             var detection = ((App)Application.Current).GameDetectionService;
@@ -110,7 +121,11 @@ public partial class MainWindow : Window
             if (dlg.ShowDialog() == true && dlg.SelectedProcessName is not null)
                 App.MainVM.SetNotebookProcess(nb, dlg.SelectedProcessName);
         };
-        var clearProcess = new MenuItem { Header = "프로세스 연동 해제" };
+        var clearProcess = new MenuItem
+        {
+            Header = "프로세스 연동 해제",
+            IsEnabled = !string.IsNullOrEmpty(nb.ProcessName)
+        };
         clearProcess.Click += (_, _) => App.MainVM.SetNotebookProcess(nb, null);
         var del = new MenuItem { Header = "삭제" };
         del.Click += (_, _) =>

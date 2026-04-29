@@ -42,16 +42,34 @@
   → MainViewModel.UpdateNoteContent() 저장
 ```
 
-## 게임 자동 감지
+## 시작 흐름 (백그라운드 우선)
+
+```
+App.OnStartup
+  → DatabaseService, SettingsService, AutoStartService 초기화
+  → MainWindow 생성 + WindowInteropHelper.EnsureHandle()
+       (창은 안 보임. 단 HWND가 만들어져 OnSourceInitialized 발생 → 글로벌 핫키 등록)
+  → OverlayWindow 생성 (Show 안 함)
+  → SetupTray (트레이 아이콘 + 컨텍스트 메뉴)
+  → GameDetectionService.Start
+```
+
+따라서 Windows 부팅 자동 실행 + 트레이만 떠있는 상태가 기본. 사용자는 단축키/트레이 메뉴로 메인 창을 띄우거나, 게임이 감지되면 자동으로 떠오름.
+
+## 게임 자동 감지 + 자동 표시
 
 ```
 GameDetectionService (System.Threading.Timer 3초)
   → MainViewModel.Notebooks의 ProcessName 목록을 Provider로 받아옴
   → Process.GetProcesses() 중 MainWindowTitle 있는 것만 매칭
   → 매칭 결과가 _lastDetected와 다르면 GameDetected 이벤트
-  → MainViewModel.OnGameDetected → Application.Dispatcher.BeginInvoke로
-    CurrentNotebook = matched
-  → OverlayViewModel.OnMainChanged → AttachToCurrentNotebook → CurrentNotebookName 갱신
+       (게임 종료 시 _lastDetected = null로 리셋되므로,
+        같은 게임 재시작 시에도 다시 이벤트 발생)
+  ├─ MainViewModel.OnGameDetected → Dispatcher.BeginInvoke로 CurrentNotebook = matched
+  ├─ OverlayViewModel.OnMainChanged → AttachToCurrentNotebook → CurrentNotebookName 갱신
+  └─ App.OnGameDetectedShowWindows → Dispatcher.Invoke로
+        _mainWindow.Show()  (숨겨져있으면)
+        _overlayWindow.Show()  (숨겨져있으면)
 ```
 
 ## 오버레이 빠른 입력 (멀티라인 + 초안 자동 저장)
