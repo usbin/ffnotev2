@@ -16,11 +16,13 @@ public partial class App : Application
 
     public GameDetectionService GameDetectionService { get; private set; } = null!;
     public SettingsService SettingsService { get; private set; } = null!;
+    public AutoStartService AutoStart { get; private set; } = null!;
 
     private DatabaseService? _db;
     private MainWindow? _mainWindow;
     private OverlayWindow? _overlayWindow;
     private NotifyIcon? _tray;
+    private ToolStripMenuItem? _autoStartMenuItem;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -39,6 +41,8 @@ public partial class App : Application
         }
 
         SettingsService = new SettingsService(_db.DataDirectory);
+        AutoStart = new AutoStartService();
+        SyncAutoStartOnStartup();
         GameDetectionService = new GameDetectionService();
         MainVM = new MainViewModel(_db, GameDetectionService);
         OverlayVM = new OverlayViewModel(MainVM, SettingsService);
@@ -63,15 +67,51 @@ public partial class App : Application
             Visible = true
         };
 
+        _autoStartMenuItem = new ToolStripMenuItem("Windows 시작 시 자동 실행")
+        {
+            Checked = SettingsService.Settings.AutoStartOnLogin,
+            CheckOnClick = true
+        };
+        _autoStartMenuItem.Click += (_, _) => OnAutoStartToggleClicked();
+
         var menu = new ContextMenuStrip();
         menu.Items.Add("노트 열기", null, (_, _) => ShowMain());
         menu.Items.Add("오버레이 토글", null, (_, _) => ToggleOverlay());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("단축키 설정...", null, (_, _) => ShowHotkeySettings());
+        menu.Items.Add(_autoStartMenuItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("종료", null, (_, _) => ExitApp());
         _tray.ContextMenuStrip = menu;
         _tray.DoubleClick += (_, _) => ShowMain();
+    }
+
+    /// <summary>설정과 실제 레지스트리 상태를 일치시킨다 (앱 시작 시 1회).</summary>
+    private void SyncAutoStartOnStartup()
+    {
+        var wantEnabled = SettingsService.Settings.AutoStartOnLogin;
+        var isEnabled = AutoStart.IsEnabled;
+        if (wantEnabled && !isEnabled) AutoStart.Enable();
+        else if (!wantEnabled && isEnabled) AutoStart.Disable();
+        // 켜져있어야 하면 매번 경로 갱신 (사용자가 .exe를 옮겼을 수 있음)
+        else if (wantEnabled && isEnabled) AutoStart.Enable();
+    }
+
+    private void OnAutoStartToggleClicked()
+    {
+        if (_autoStartMenuItem is null) return;
+        var enabled = _autoStartMenuItem.Checked;  // CheckOnClick=true → 클릭 시점에 이미 토글된 값
+        var ok = AutoStart.SetEnabled(enabled);
+        if (!ok)
+        {
+            // Enable 실패 (보통 ProcessPath가 비어있는 경우는 거의 없음)
+            _autoStartMenuItem.Checked = false;
+            MessageBox.Show("자동 실행 등록에 실패했습니다.", "ffnote v2",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        SettingsService.Settings.AutoStartOnLogin = enabled;
+        SettingsService.Save();
     }
 
     public void ShowMain()

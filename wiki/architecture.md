@@ -24,6 +24,7 @@ ffnotev2/
       GameDetectionService.cs         ← 프로세스 모니터링
       HotkeyService.cs                ← Win32 전역 단축키 (LibraryImport)
       SettingsService.cs              ← settings.json 로드/저장
+      AutoStartService.cs             ← HKCU\...\Run 레지스트리 R/W (Windows 자동 실행)
     Controls/
       DraggableNoteControl.xaml/.cs   ← 드래그/리사이즈 가능, 텍스트는 TextBlock↔TextBox 스왑
     Dialogs/

@@ -7,7 +7,7 @@
 |------|--------|------|
 | Models/NoteItem.cs | `NoteItem` | X/Y/Width/Height + Type(Text\|Image\|Link) + Content. `ObservableObject` 상속으로 X/Y/Width/Height 변경 시 Canvas 자동 이동/리사이즈 |
 | Models/NoteBook.cs | `NoteBook` | Name, ProcessName, Notes 컬렉션. `ObservableProperty Name` |
-| Models/AppSettings.cs | `AppSettings` | `ShowMain`, `ToggleOverlay`, `ToggleClickThrough` (HotkeyBinding) + `OverlayOpacity` + `OverlayDraft` |
+| Models/AppSettings.cs | `AppSettings` | `ShowMain`, `ToggleOverlay`, `ToggleClickThrough` (HotkeyBinding) + `OverlayOpacity` + `OverlayDraft` + `AutoStartOnLogin` + `OverlayLeft`/`OverlayTop` |
 | Models/HotkeyBinding.cs | `HotkeyBinding` | Modifiers + VirtualKey + `DisplayString` ("Ctrl+Alt+Z") |
 
 ## 서비스
@@ -18,6 +18,7 @@
 | Services/GameDetectionService.cs | `GameDetectionService` | `Start()` — 3초 폴링; `GetRunningWindowedProcesses()` — 창 있는 프로세스 목록 반환 |
 | Services/HotkeyService.cs | `HotkeyService` | `Initialize(Window)`, `Register(modifiers, vk, callback)`, `UnregisterAll()` — Win32 RegisterHotKey 래퍼 (LibraryImport source-generated P/Invoke) |
 | Services/SettingsService.cs | `SettingsService` | `%APPDATA%\ffnotev2\settings.json` 로드/저장. `AppSettings` 노출 (HotkeyBinding 3개) |
+| Services/AutoStartService.cs | `AutoStartService` | `HKCU\...\Run\ffnote` 레지스트리 R/W. `Enable()`/`Disable()`/`IsEnabled` |
 
 ## 뷰모델
 

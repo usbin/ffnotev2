@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace ffnotev2;
 
@@ -21,15 +22,65 @@ public partial class OverlayWindow : Window
 
     public bool IsClickThrough { get; private set; }
 
+    private readonly DispatcherTimer _locationSaveTimer;
+    private bool _suppressLocationSave;
+
     public OverlayWindow()
     {
         InitializeComponent();
         DataContext = App.OverlayVM;
+
+        _locationSaveTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(500)
+        };
+        _locationSaveTimer.Tick += (_, _) =>
+        {
+            _locationSaveTimer.Stop();
+            SaveLocationToSettings();
+        };
+
         Loaded += (_, _) =>
         {
             var settings = ((App)Application.Current).SettingsService.Settings;
             Opacity = Math.Clamp(settings.OverlayOpacity, 0.2, 1.0);
+
+            // 위치 복원: LocationChanged의 즉시 저장이 발생하지 않도록 가드
+            _suppressLocationSave = true;
+            (Left, Top) = ClampToVisibleScreen(settings.OverlayLeft, settings.OverlayTop);
+            _suppressLocationSave = false;
         };
+
+        LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, EventArgs e)
+    {
+        if (_suppressLocationSave) return;
+        // 디바운싱: 드래그 중 픽셀마다 저장하면 IO 폭증 → 500ms 정지 후 저장
+        _locationSaveTimer.Stop();
+        _locationSaveTimer.Start();
+    }
+
+    private void SaveLocationToSettings()
+    {
+        var app = (App)Application.Current;
+        app.SettingsService.Settings.OverlayLeft = Left;
+        app.SettingsService.Settings.OverlayTop = Top;
+        app.SettingsService.Save();
+    }
+
+    /// <summary>저장된 좌표가 모든 모니터 영역 밖이면 기본값(40,40)으로.</summary>
+    private (double left, double top) ClampToVisibleScreen(double left, double top)
+    {
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        var visible = screens.Any(s =>
+        {
+            var b = s.WorkingArea;
+            return left + Width > b.Left && left < b.Right
+                && top + Height > b.Top && top < b.Bottom;
+        });
+        return visible ? (left, top) : (40, 40);
     }
 
     private void SaveOpacityToSettings()

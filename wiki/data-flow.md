@@ -106,6 +106,21 @@ Ctrl+Alt+Z (또는 사용자 지정)
   → 끄려면 Ctrl+Alt+Z 다시 (단축키만 받음, 마우스 클릭은 통과 중)
 ```
 
+## Windows 자동 실행 토글
+
+```
+트레이 → "Windows 시작 시 자동 실행" 체크 (CheckOnClick=true)
+  → AutoStart.SetEnabled(true)
+  → HKCU\Software\Microsoft\Windows\CurrentVersion\Run
+       \ffnote = "C:\path\to\ffnotev2.exe"
+  → SettingsService.Settings.AutoStartOnLogin = true → settings.json
+
+앱 시작 시 동기화:
+  settings.AutoStartOnLogin == true && Run 키 없음 → 등록
+  settings.AutoStartOnLogin == false && Run 키 있음 → 삭제
+  settings.AutoStartOnLogin == true && Run 키 있음 → 경로 갱신 (이동했을 수 있어)
+```
+
 ## 오버레이 투명도 (자동 저장)
 
 ```
@@ -115,4 +130,21 @@ Ctrl+Alt+Z (또는 사용자 지정)
   → SaveOpacityToSettings() → settings.json
 앱 재시작
   → OverlayWindow.Loaded → SettingsService.Settings.OverlayOpacity 복원
+```
+
+## 오버레이 위치 (자동 저장)
+
+```
+사용자 드래그 (Border MouseLeftButtonDown → DragMove)
+  → Window.LocationChanged 이벤트 (픽셀마다 발생)
+  → DispatcherTimer 500ms 디바운서 (각 LocationChanged마다 Stop+Start)
+  → 0.5초간 정지하면 Tick → SaveLocationToSettings()
+  → settings.OverlayLeft / OverlayTop → settings.json
+
+앱 재시작
+  → OverlayWindow.Loaded
+  → ClampToVisibleScreen(savedLeft, savedTop)
+       모든 모니터 작업 영역 중 어느 하나라도 겹치면 그대로
+       모두 밖이면 기본값(40, 40) — 해상도/모니터 변경 대응
+  → _suppressLocationSave 가드로 복원 시 LocationChanged 무시
 ```

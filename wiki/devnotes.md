@@ -8,17 +8,16 @@
 - **전체화면 배타 게임 위 표시 불가**: WPF `AllowsTransparency=True`는 윈도우 모드/보더리스에서만 보장
 - **오버레이 위치 비저장**: 앱 재시작 시 좌상단(40, 40)으로 초기화
 
-## TODO
+## TODO (다음 작업 후보)
 
-- [ ] **Canvas 무한 영역 / 줌 / 팬** (아래 "캔버스 무한 확장 옵션" 참고)
-- [ ] 오버레이 위치 저장 (재시작 후 복원)
+- [ ] **Canvas 무한 영역 / 줌 / 팬** ← 다음 작업 예정. 아래 "캔버스 무한 확장 옵션"의 3번(Pan/Zoom RenderTransform) 방식
 - [ ] 노트 색상 변경 기능
-- [ ] 트레이 아이콘 커스텀 (현재 `SystemIcons.Application`)
-- [ ] 노트북 드래그 정렬
-- [ ] 단일 인스턴스 보장 (Mutex)
+- [ ] 노트북 드래그 정렬 (사이드바)
 - [ ] 노트 검색 / 필터
-- [ ] 백업·Export·Import
-- [ ] DPI 스케일 변경 시 오버레이 위치 보정
+- [ ] 백업·Export·Import (SQLite + 이미지 zip)
+- [ ] 트레이 아이콘 커스텀 (현재 `SystemIcons.Application`)
+- [ ] 단일 인스턴스 보장 (Mutex)
+- [ ] DPI 스케일 변경 시 오버레이 위치 보정 (현재는 픽셀 단위 저장만)
 - [ ] 다국어
 
 ## 완료된 작업 (참조)
@@ -29,7 +28,9 @@
 - [x] 오버레이 클릭 패스스루 토글 (Ctrl+Alt+Z 기본)
 - [x] 오버레이 투명도 우클릭 조정 + 자동 저장
 - [x] 오버레이 초안(QuickNoteText) 자동 저장
+- [x] 오버레이 위치 자동 저장/복원 (LocationChanged 디바운스 500ms, 화면 밖 Clamp)
 - [x] 글로벌 단축키 사용자 설정 다이얼로그 + JSON 영속화
+- [x] Windows 시작 시 자동 실행 토글 (HKCU\...\Run, AutoStartService)
 - [x] 한글 IME 버그 — TextBlock/TextBox 스왑으로 회피
 - [x] 노트북 이름 변경이 오버레이 표시에 즉시 반영
 

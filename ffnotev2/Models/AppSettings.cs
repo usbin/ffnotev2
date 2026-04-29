@@ -19,4 +19,9 @@ public class AppSettings
     public double OverlayOpacity { get; set; } = 1.0;
 
     public string OverlayDraft { get; set; } = string.Empty;
+
+    public bool AutoStartOnLogin { get; set; }
+
+    public double OverlayLeft { get; set; } = 40;
+    public double OverlayTop { get; set; } = 40;
 }
