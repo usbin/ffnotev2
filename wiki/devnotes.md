@@ -45,7 +45,11 @@
 - [x] **10px 격자 스냅 (노트북별 토글, 기본 OFF)** — `MainViewModel.GridSize=10` + `Snap()`/`MaybeSnap()`. `NoteBook.SnapEnabled` 컬럼 + DB 마이그레이션. 우하단 ⊞ 토글 버튼 (TwoWay 바인딩, 변경 시 즉시 DB 영속화)
 - [x] **다중 선택 + 일괄 드래그/리사이즈** — `NoteItem.IsSelected`(transient). 빈 캔버스 좌클릭 드래그 = 마키(인터섹트, world 변환), Shift+클릭 = 토글, 단순 클릭/Esc = 해제. 선택된 노트 한 개를 드래그하면 모두 동기 이동(같은 Δ). 리사이즈는 `DragStarted`에서 시작 크기 캡처 + 누적 Δ로 모두 같은 px만큼 변경(절대). 선택 시각: 외곽 Border 파란 테두리(#5599FF, 두께 2)
 - [x] **노트 외곽 4면 리사이즈 핸들** — 5px 투명 Thumb를 상/하/좌/우에 배치, sender.Tag로 단일 핸들러 분기. 좌/상 엣지는 X/Y와 W/H 동시 변경(반대편 엣지 고정). 코너(우하단) 14×14는 그대로 유지(외곽보다 위)
-- [x] **편집 중 Alt+방향키 인접 노트 이동** — `MainViewModel.FindNeighborNote`(중심점 거리 + 방향 콘 필터). DataContextChanged에서 PropertyChanged 구독 → 외부 IsEditing=true 변화도 감지해 BeginEdit
+- [x] **방향키 노트 이동** — `MainViewModel.FindNeighborNote`(중심점 거리 + 방향 콘 필터). Window 레벨에서 통합 처리(`MainWindow.TryHandleArrowNavigation`):
+   - 편집 중(TextBox 포커스): Alt+방향키 → 인접 노트로 편집 이동 (Keyboard.ClearFocus → 저장 → 다음 노트 IsEditing=true 트리거)
+   - 비편집(단일 선택): 그냥 방향키 → 선택 이동만
+   - 사이드바 ListBox 등에서는 가로채지 않음. 다른 모디파이어 있을 땐 양보
+   - DraggableNoteControl이 DataContextChanged에서 PropertyChanged 구독해 외부 IsEditing=true 변화도 감지해 BeginEdit
 - [x] **그룹 (NoteGroup)** — DB 테이블 `NoteGroups`(Id/NotebookId/X/Y/W/H). 멤버십은 동적(bbox 완전 내포). 그룹 점선 사각형 시각, Stroke만 hit-test 되어 내부 노트 클릭/마키 통과. 드래그 시작 시 `GetMembersOf`로 멤버 스냅샷, 그룹+멤버 모두 같은 Δ로 이동. Ctrl+G로 선택 노트 bbox+10px 패딩으로 그룹 생성, Ctrl+Shift+G/우클릭 메뉴로 해제. 노트와 그룹이 RenderTransform을 공유하도록 `Grid CanvasContent`로 묶음 — 그룹은 노트 뒤, 마키는 노트와 그룹 모두 인터섹트로 선택. 스냅 토글에 따라 그룹 드래그도 격자 정렬
 - [x] **일괄 스냅 (B, 애니메이션)** — `MainViewModel.BulkSnap()`. 전체 노트 좌상단 floor + 사이즈 ceil. (Y,X) 오름차순 정렬 후 충돌 시 dx/dy 최소 거리 계산해 짧은 방향 우선 시프트 (단순 우측 wrap 방식보다 노트가 멀리 사라지지 않음). DispatcherTimer 16ms × 100ms 선형 보간으로 이동/리사이즈 애니메이션, 완료 후 DB 저장. 우하단 ⊟ 버튼으로 발동
 - [x] **WPF 포커스 사각형 제거** — ItemsControl/ItemContainer/CanvasArea의 `FocusVisualStyle="{x:Null}"`

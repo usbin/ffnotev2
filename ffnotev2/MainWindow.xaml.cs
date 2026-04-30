@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using ffnotev2.Dialogs;
 using ffnotev2.Models;
 using ffnotev2.Services;
@@ -106,7 +107,90 @@ public partial class MainWindow : Window
             var (x, y) = GetWorldMousePosition();
             App.MainVM.PasteFromClipboard(x, y);
             e.Handled = true;
+            return;
         }
+
+        // 화살표 노트 이동:
+        //   편집 중(TextBox 포커스): Alt+화살표 → 인접 노트로 편집 이동
+        //   비편집: 그냥 화살표 → 단일 선택 노트의 인접 노트로 선택 이동
+        TryHandleArrowNavigation(e);
+    }
+
+    private void TryHandleArrowNavigation(KeyEventArgs e)
+    {
+        var actualKey = e.Key == Key.System ? e.SystemKey : e.Key;
+        string? dir = actualKey switch
+        {
+            Key.Left => "Left",
+            Key.Right => "Right",
+            Key.Up => "Up",
+            Key.Down => "Down",
+            _ => null
+        };
+        if (dir is null) return;
+
+        var inTextBox = e.OriginalSource is TextBox;
+        var alt = (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
+
+        Models.NoteItem? current = null;
+        bool resumeEdit = false;
+
+        if (inTextBox)
+        {
+            // 편집 중: Alt 없이는 일반 화살표(커서 이동) 양보
+            if (!alt) return;
+            current = FindNoteFromVisual(e.OriginalSource as DependencyObject);
+            resumeEdit = true;
+        }
+        else
+        {
+            // 비편집: 다른 모디파이어 있거나 사이드바/리스트박스에 포커스면 양보
+            if (Keyboard.Modifiers != ModifierKeys.None) return;
+            if (IsInsideListBox(e.OriginalSource)) return;
+            var sel = App.MainVM.SelectedNotes.ToList();
+            if (sel.Count == 1) current = sel[0];
+        }
+
+        if (current is null) return;
+
+        var next = App.MainVM.FindNeighborNote(current, dir);
+        if (next is null)
+        {
+            // 인접 노트 없음 — 편집 중이면 화살표가 텍스트박스로 흐르지 않게 차단
+            if (resumeEdit) e.Handled = true;
+            return;
+        }
+
+        App.MainVM.SelectOnly(next);
+        if (resumeEdit)
+        {
+            // 현재 TextEditor 포커스 해제 → LostFocus가 Content 저장
+            // 다음 노트의 IsEditing=true 트리거 → DraggableNoteControl이 BeginEdit
+            Keyboard.ClearFocus();
+            Dispatcher.BeginInvoke(new Action(() => next.IsEditing = true), DispatcherPriority.Loaded);
+        }
+        e.Handled = true;
+    }
+
+    private static Models.NoteItem? FindNoteFromVisual(DependencyObject? d)
+    {
+        while (d is not null)
+        {
+            if (d is Controls.DraggableNoteControl dn && dn.DataContext is Models.NoteItem n) return n;
+            d = VisualTreeHelper.GetParent(d);
+        }
+        return null;
+    }
+
+    private static bool IsInsideListBox(object? source)
+    {
+        DependencyObject? d = source as DependencyObject;
+        while (d is not null)
+        {
+            if (d is ListBox or ListBoxItem) return true;
+            d = VisualTreeHelper.GetParent(d);
+        }
+        return false;
     }
 
     private (double X, double Y) GetWorldMousePosition()

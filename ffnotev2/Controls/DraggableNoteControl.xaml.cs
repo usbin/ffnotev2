@@ -169,35 +169,8 @@ public partial class DraggableNoteControl : UserControl
             FocusManager.SetFocusedElement(this, null);
             Keyboard.ClearFocus();
             e.Handled = true;
-            return;
         }
-
-        // Alt+방향키: 인접 노트로 편집 이동 (Alt 눌리면 Key=System, 실제 키는 SystemKey)
-        if (Item is not null && (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt)
-        {
-            var actual = e.Key == Key.System ? e.SystemKey : e.Key;
-            string? dir = actual switch
-            {
-                Key.Left => "Left",
-                Key.Right => "Right",
-                Key.Up => "Up",
-                Key.Down => "Down",
-                _ => null
-            };
-            if (dir is not null)
-            {
-                var next = App.MainVM.FindNeighborNote(Item, dir);
-                if (next is not null)
-                {
-                    App.MainVM.SelectOnly(next);
-                    // 현재 포커스 해제 → LostFocus가 Content 저장. 그 다음 다음 노트의 IsEditing=true로
-                    // 트리거해 BeginEdit (DataContextChanged의 PropertyChanged 핸들러가 받음).
-                    Keyboard.ClearFocus();
-                    Dispatcher.BeginInvoke(new Action(() => next.IsEditing = true), DispatcherPriority.Loaded);
-                }
-                e.Handled = true;
-            }
-        }
+        // Alt+방향키 노트 이동은 Window_PreviewKeyDown에서 통합 처리
     }
 
     private double _resizeAccumDx;
