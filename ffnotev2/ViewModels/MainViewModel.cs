@@ -189,7 +189,7 @@ public partial class MainViewModel : ObservableObject
                                      double bx, double by, double bw, double bh) =>
         ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 
-    /// <summary>현재 노트북에서 from을 기준으로 지정 방향에서 가장 가까운 텍스트 노트 반환.</summary>
+    /// <summary>현재 노트북에서 from을 기준으로 지정 방향에서 가장 가까운 노트 반환 (모든 타입).</summary>
     public NoteItem? FindNeighborNote(NoteItem from, string direction)
     {
         if (CurrentNotebook is null) return null;
@@ -199,7 +199,7 @@ public partial class MainViewModel : ObservableObject
         double bestScore = double.MaxValue;
         foreach (var n in CurrentNotebook.Notes)
         {
-            if (n == from || n.Type != NoteType.Text) continue;
+            if (n == from) continue;
             var cx = n.X + n.Width / 2;
             var cy = n.Y + n.Height / 2;
             var dx = cx - fromCx;

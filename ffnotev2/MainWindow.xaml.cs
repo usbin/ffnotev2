@@ -110,9 +110,24 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Enter: 비편집 + 단일 선택 텍스트 노트 → 편집 모드 진입
+        if (e.Key == Key.Enter && e.OriginalSource is not TextBox)
+        {
+            if (Keyboard.Modifiers == ModifierKeys.None && !IsInsideListBox(e.OriginalSource))
+            {
+                var sel = App.MainVM.SelectedNotes.ToList();
+                if (sel.Count == 1 && sel[0].Type == Models.NoteType.Text)
+                {
+                    sel[0].IsEditing = true;
+                    e.Handled = true;
+                    return;
+                }
+            }
+        }
+
         // 화살표 노트 이동:
         //   편집 중(TextBox 포커스): Alt+화살표 → 인접 노트로 편집 이동
-        //   비편집: 그냥 화살표 → 단일 선택 노트의 인접 노트로 선택 이동
+        //   비편집: 화살표(Alt 무관) → 단일 선택 노트의 인접 노트로 선택 이동
         TryHandleArrowNavigation(e);
     }
 
@@ -144,9 +159,11 @@ public partial class MainWindow : Window
         }
         else
         {
-            // 비편집: 다른 모디파이어 있거나 사이드바/리스트박스에 포커스면 양보
-            if (Keyboard.Modifiers != ModifierKeys.None) return;
+            // 비편집: 사이드바/리스트박스에 포커스면 양보. 모디파이어는 무관(Alt+화살표도 작동)
             if (IsInsideListBox(e.OriginalSource)) return;
+            // Ctrl/Shift는 다른 동작에 쓰일 수 있으니 양보
+            var mods = Keyboard.Modifiers & ~ModifierKeys.Alt;
+            if (mods != ModifierKeys.None) return;
             var sel = App.MainVM.SelectedNotes.ToList();
             if (sel.Count == 1) current = sel[0];
         }
