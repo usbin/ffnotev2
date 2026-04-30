@@ -114,6 +114,27 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Ctrl+C: 선택 노트를 시스템 클립보드에 복사 (다른 앱에서도 받을 수 있음)
+        if (e.Key == Key.C && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control
+            && e.OriginalSource is not TextBox)
+        {
+            App.MainVM.CopySelectedToClipboard();
+            e.Handled = true;
+            return;
+        }
+
+        // Delete: 비편집 + 선택 노트들 삭제
+        if (e.Key == Key.Delete && e.OriginalSource is not TextBox)
+        {
+            var sel = App.MainVM.SelectedNotes.ToList();
+            if (sel.Count > 0)
+            {
+                foreach (var n in sel) App.MainVM.DeleteNote(n);
+                e.Handled = true;
+                return;
+            }
+        }
+
         // Enter: 비편집 + 단일 선택 텍스트 노트 → 편집 모드 진입
         if (e.Key == Key.Enter && e.OriginalSource is not TextBox)
         {
@@ -247,9 +268,23 @@ public partial class MainWindow : Window
         var sel = App.MainVM.SelectedNotes.ToList();
         if (sel.Count == 0) return false;
 
-        var step = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ? 10 : 1;
-        var dx = dxUnit * step;
-        var dy = dyUnit * step;
+        var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+        double dx, dy;
+        if (shift)
+        {
+            // 격자 정렬 이동: 첫 노트를 기준으로 격자에 맞도록 dx/dy 계산.
+            // 모두 같은 Δ를 적용하여 다중 선택 시에도 노트 간 상대 위치 유지
+            const double G = ViewModels.MainViewModel.GridSize;
+            var pivot = sel[0];
+            dx = dxUnit != 0 ? (Math.Floor(pivot.X / G) * G + dxUnit * G - pivot.X) : 0;
+            dy = dyUnit != 0 ? (Math.Floor(pivot.Y / G) * G + dyUnit * G - pivot.Y) : 0;
+        }
+        else
+        {
+            // 1px 정밀 이동
+            dx = dxUnit;
+            dy = dyUnit;
+        }
         foreach (var n in sel)
         {
             n.X += dx;
@@ -311,6 +346,9 @@ public partial class MainWindow : Window
             _marqueeActive = true;
             _marqueeStart = e.GetPosition(CanvasArea);
             CanvasArea.CaptureMouse();
+            // 편집 중이던 TextBox에서 포커스를 캔버스로 옮겨 LostFocus(저장) 트리거
+            // → 노트는 표시 모드로 복귀, 키 입력이 더 이상 그 노트로 가지 않음
+            FocusCanvas();
             e.Handled = true;
             return;
         }

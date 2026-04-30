@@ -417,6 +417,38 @@ public partial class MainViewModel : ObservableObject
         CurrentNotebook?.Notes.Remove(note);
     }
 
+    /// <summary>선택된 노트(첫 1개)를 시스템 클립보드에 복사. 텍스트/링크 → SetText, 이미지 → SetImage.</summary>
+    public void CopySelectedToClipboard()
+    {
+        var note = SelectedNotes.FirstOrDefault();
+        if (note is null) return;
+        try
+        {
+            switch (note.Type)
+            {
+                case NoteType.Text:
+                case NoteType.Link:
+                    Clipboard.SetText(note.Content ?? string.Empty);
+                    break;
+                case NoteType.Image:
+                    if (!File.Exists(note.Content)) return;
+                    var bmp = new BitmapImage();
+                    bmp.BeginInit();
+                    bmp.UriSource = new Uri(note.Content, UriKind.Absolute);
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.EndInit();
+                    bmp.Freeze();
+                    Clipboard.SetImage(bmp);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"클립보드 복사 실패: {ex.GetType().Name}\n{ex.Message}",
+                "ffnote v2", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     public void PasteFromClipboard(double canvasMouseX, double canvasMouseY)
     {
         if (CurrentNotebook is null) return;
