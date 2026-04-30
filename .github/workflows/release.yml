@@ -1,0 +1,53 @@
+name: release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install Velopack CLI
+        run: dotnet tool install -g vpk
+
+      - name: Extract version from tag
+        id: ver
+        shell: bash
+        run: echo "ver=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Publish (framework-dependent, single file)
+        run: >
+          dotnet publish ffnotev2/ffnotev2.csproj
+          -c Release
+          -r win-x64
+          --no-self-contained
+          -o publish
+          /p:Version=${{ steps.ver.outputs.ver }}
+
+      - name: Pack with Velopack (portable only)
+        run: >
+          vpk pack
+          -u ffnotev2
+          -v ${{ steps.ver.outputs.ver }}
+          -p publish
+          -e ffnotev2.exe
+          --framework net10.0-x64-desktop
+          --noInst
+
+      - name: Upload to GitHub Release
+        run: >
+          vpk upload github
+          --repoUrl https://github.com/${{ github.repository }}
+          --publish
+          --releaseName "ffnote v2 ${{ steps.ver.outputs.ver }}"
+          --tag ${{ github.ref_name }}
+          --token ${{ secrets.GITHUB_TOKEN }}

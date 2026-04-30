@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using ffnotev2.Models;
 using Point = System.Windows.Point;
@@ -117,15 +118,73 @@ public partial class GroupBoxControl : UserControl
         _noteSnapshot.Clear();
     }
 
-    private void GroupBox_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    // 리사이즈: 그룹 자체 bbox만 변경. 멤버는 이동시키지 않음 (멤버십은 동적 — 새 bbox로 재판정)
+    private string _resizeEdge = "Corner";
+    private (double X, double Y, double W, double H) _resizeStart;
+    private Point _resizeMouseStart;
+
+    private void ResizeThumb_DragStarted(object sender, DragStartedEventArgs e)
     {
         if (Group is null) return;
-        var menu = new ContextMenu();
-        var ungroup = new MenuItem { Header = "그룹 해제 (Ctrl+Shift+G)" };
-        ungroup.Click += (_, _) => App.MainVM.DeleteGroup(Group);
-        menu.Items.Add(ungroup);
-        menu.PlacementTarget = (UIElement)sender;
-        menu.IsOpen = true;
-        e.Handled = true;
+        var canvas = FindParentCanvas();
+        if (canvas is null) return;
+        _resizeEdge = (sender as FrameworkElement)?.Tag as string ?? "BottomRight";
+        _resizeStart = (Group.X, Group.Y, Group.Width, Group.Height);
+        _resizeMouseStart = Mouse.GetPosition(canvas);
+    }
+
+    private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (Group is null) return;
+        var canvas = FindParentCanvas();
+        if (canvas is null) return;
+        var mouseNow = Mouse.GetPosition(canvas);
+        var dx = mouseNow.X - _resizeMouseStart.X;
+        var dy = mouseNow.Y - _resizeMouseStart.Y;
+        const double minW = 60, minH = 40;
+
+        bool left = _resizeEdge is "Left" or "TopLeft" or "BottomLeft";
+        bool right = _resizeEdge is "Right" or "TopRight" or "BottomRight";
+        bool top = _resizeEdge is "Top" or "TopLeft" or "TopRight";
+        bool bottom = _resizeEdge is "Bottom" or "BottomLeft" or "BottomRight";
+
+        if (right)
+        {
+            Group.Width = Math.Max(minW, App.MainVM.MaybeSnap(_resizeStart.W + dx));
+        }
+        if (left)
+        {
+            var rightEdge = _resizeStart.X + _resizeStart.W;
+            var newX = App.MainVM.MaybeSnap(_resizeStart.X + dx);
+            if (rightEdge - newX < minW) newX = rightEdge - minW;
+            Group.X = newX;
+            Group.Width = rightEdge - newX;
+        }
+        if (bottom)
+        {
+            Group.Height = Math.Max(minH, App.MainVM.MaybeSnap(_resizeStart.H + dy));
+        }
+        if (top)
+        {
+            var bottomEdge = _resizeStart.Y + _resizeStart.H;
+            var newY = App.MainVM.MaybeSnap(_resizeStart.Y + dy);
+            if (bottomEdge - newY < minH) newY = bottomEdge - minH;
+            Group.Y = newY;
+            Group.Height = bottomEdge - newY;
+        }
+    }
+
+    private void ResizeThumb_DragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (Group is null) return;
+        if (Group.X == _resizeStart.X && Group.Y == _resizeStart.Y
+            && Group.Width == _resizeStart.W && Group.Height == _resizeStart.H) return;
+        var changes = new List<(Services.ItemSnapshot Old, Services.ItemSnapshot New)>
+        {
+            (new Services.ItemSnapshot(Group, _resizeStart.X, _resizeStart.Y, _resizeStart.W, _resizeStart.H),
+             new Services.ItemSnapshot(Group, Group.X, Group.Y, Group.Width, Group.Height))
+        };
+        App.MainVM.UpdateGroupPosition(Group);
+        App.MainVM.RecordTransform(changes);
     }
 }

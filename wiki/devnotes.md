@@ -1,6 +1,29 @@
 <!-- 최종 수정: 2026-04-30 -->
 # 개발 노트
 
+## 최근 변경 (2026-04-30)
+
+- **자동 업데이트 (Velopack + GitHub Releases, 포터블 전용)**: `Velopack` NuGet + `Services/UpdateService.cs`. `App.xaml.cs`에 명시적 `[STAThread] Main` 추가해 `VelopackApp.Build().Run()`이 WPF 시작 전에 실행. `MainWindow.OnSourceInitialized`에서 `_ = new UpdateService().CheckAndPromptAsync(this)` 비동기 호출 — 새 버전 발견 시 다이얼로그(OK/Cancel) → OK 시 다운로드 + `ApplyUpdatesAndRestart` 즉시 재시작. `_mgr.IsInstalled=false`(개발 빌드)면 스킵. csproj는 `Version`/`AssemblyVersion`/`FileVersion`+`PublishSingleFile`+`SelfContained=false`+`RuntimeIdentifier=win-x64`+`StartupObject=ffnotev2.App` 추가, `App.xaml`은 `ApplicationDefinition` → `Page`로 빌드 액션 변경(auto-Main 충돌 방지). CI: `.github/workflows/release.yml`이 `v*.*.*` 태그 푸시 시 dotnet publish + `vpk pack --noInst`(포터블 zip만) + `vpk upload github`. 단일 인스턴스 mutex는 `VelopackApp.Run()` 이후에 처리되므로 훅 명령(`--veloapp-*`)과 충돌 없음. **코드 사이닝 미적용** — self-signed는 SmartScreen에 효과 없어 의도적 생략. 본인/소수 배포 수준에서는 MOTW 기반 SmartScreen 경고를 "추가 정보 → 실행"으로 우회하면 충분(`setup.md`에 안내). 향후 공개 배포 시 SignPath.io Foundation(OSS 무료 EV) 또는 Microsoft Trusted Signing($9.99/월) 검토.
+- **편집 중 캐럿 이동 회복**: 직전 `UserControl_PreviewMouseLeftButtonDown` 가드의 `e.OriginalSource is not TextBox`는 TextBox 내부 visual(TextBoxView 등)을 못 잡음 → 글자 사이 클릭 시 편집 종료 버그. `IsInsideTextBox` visual-tree 헬퍼로 교체.
+- **노트/그룹 4 코너 리사이즈 핸들 (대각선)**: 기존 우하단 가시 삼각형 핸들을 제거하고 4 코너(`TopLeft/TopRight/BottomLeft/BottomRight`) 모두 10×10 투명 Thumb로 통일. 엣지 thumb보다 z-order 위에 두어 코너 영역에서 우선. 단일 핸들러가 좌/우/상/하 플래그(`left/right/top/bottom`)로 분기 — 플래그가 동시에 활성되면 X/Y와 W/H 동시 변경. min 크기는 노트 80×40, 그룹 60×40.
+- **그룹 삭제 다이얼로그**: `Dialogs/GroupDeleteDialog`. 멤버 노트가 있는 그룹 삭제 시 "포함된 노트 N건도 삭제하시겠습니까?" + "일괄 삭제 / 그룹만 삭제 / 취소". `MainWindow.DeleteGroupsWithPrompt(groups, extraNotes?)`이 모든 그룹 삭제 콜사이트(Ctrl+Shift+G, Delete 키, 우클릭 메뉴 통합 + 단일)를 통합. `extraNotes`(명시적 선택 노트)는 멤버와 중복 제거 후 항상 삭제. 멤버 0건이면 다이얼로그 없이 즉시 삭제. `MainViewModel.GetMemberNotesOf(IEnumerable<NoteGroup>)`이 합집합 반환(중복 제거).
+
+
+- **그룹 UX 재설계**: `GroupBoxControl`이 노트와 같은 형태(헤더 + 점선 외곽 + 4 엣지 + 코너 리사이즈)로 변경. 본문은 hit-test 통과해 멤버 노트 클릭 보존. 헤더 드래그가 명확한 어포던스 역할. 점선 외곽은 `IsHitTestVisible=False` 시각 표시 전용. 그룹 상단 패딩은 `CreateGroupFromSelectedNotes`에서 30px(헤더 22 + 여유 8)로 설정 — 헤더가 멤버 노트에 가려지지 않도록.
+- **Notes Canvas hit-test 통과 처리** (필독): `MainWindow.xaml`의 `NotesItemsControl` ItemsPanel `Canvas`의 `Background`를 `Transparent` → `{x:Null}`로 변경. WPF hit-test는 z-order 최상위에서 멈추므로 `Background="Transparent"`인 노트 Canvas가 그 뒤(z-order)의 그룹 헤더/리사이즈 핸들로 가는 클릭을 모두 가로채던 문제. null로 바꾸면 노트 없는 영역의 클릭이 그룹 element로 도달. 마키는 결국 `CanvasArea` Grid(`Background="#FF1E1E1E"`)에서 받으므로 그대로 동작. **노트 ItemsControl 패널 Background를 다시 Transparent로 되돌리지 말 것 — 그룹 클릭이 깨짐.**
+- **우클릭 메뉴 통합**: `DraggableNoteControl`/`GroupBoxControl`의 자체 `MouseRightButtonUp` 핸들러 모두 제거. 모든 우클릭이 `Canvas_MouseRightButtonUp`로 버블링. 핸들러는 `e.OriginalSource`에서 `FindNoteFromVisual`/`FindGroupFromVisual`로 대상을 식별해 단일 메뉴를 빌드:
+   - 항상: "새 텍스트 노트"
+   - 선택된 노트가 있으면: "그룹 만들기 (N개)"
+   - 선택된 그룹이 있으면: "그룹 해제 (N개)"
+   - 우클릭 대상이 노트면: "삭제하기 (Delete)"
+   - 우클릭 대상이 (선택 안 된) 그룹이면: "그룹 해제"
+- **노트/그룹 위 우클릭 드래그 팬 + 컨텍스트 메뉴 공존**: 우클릭은 항상 팬 후보로 진입(노트/그룹 포함). down 시점에 `_rightClickOrigin`에 원본 visual을 저장하고, up 시점에 `_panMoved=false`(이동 없음)면 저장된 origin으로 노트/그룹을 식별해 메뉴 빌드. `_panMoved=true`면 팬으로 처리하고 메뉴 억제. CanvasArea가 마우스 캡처해 `MouseRightButtonUp.OriginalSource`가 캔버스로 바뀌어도 저장된 origin이 정확한 대상을 가리킴.
+- **`IsOriginInsideNote`가 `GroupBoxControl`도 검사**: CanvasArea가 generic `MouseDown`으로 좌클릭을 처리해 자식의 specific `MouseLeftButtonDown` `e.Handled`로 마키 시작을 막을 수 없음. visual tree에서 `GroupBoxControl` 부모를 찾으면 마키/팬 모두 스킵.
+- **Delete 키 그룹 삭제**: `Window_PreviewKeyDown` Delete 분기가 `SelectedNotes` + `SelectedGroups` 모두 일괄 삭제.
+- **편집 커서 잔존 버그 수정**: 노트 편집 중 다른 노트(이미지·텍스트 헤더 등)를 클릭해도 이전 TextBox 커서가 남던 문제 해결. `DraggableNoteControl.UserControl_PreviewMouseLeftButtonDown`에서 클릭 소스가 TextBox가 아니면 `MainWindow.FocusCanvas()`로 키보드 포커스 이동 → 이전 TextBox `LostFocus` 트리거 → 표시 모드로 복귀. 자신의 TextEditor를 직접 클릭한 경우는 제외해서 편집 흐름 유지. 더블클릭으로 BeginEdit는 PreviewMouseLeftButtonDown 이후 `Keyboard.Focus(TextEditor)`로 다시 포커스를 잡으므로 정상 동작.
+- **붙여넣기 후 비편집 선택 상태**: `MainViewModel.AddTextNote(autoEdit=true)` 파라미터 추가. `PasteFromClipboard`는 텍스트를 `autoEdit:false`로 만들고 `SelectOnly(note)`로 선택 표시. 이미지/링크도 `SelectOnly`로 통일.
+- **노트 헤더 × 버튼 제거**: 우클릭 메뉴의 "삭제하기"로 대체.
+
 ## 알려진 제한 사항
 
 - **이미지 비율 조정 없음**: 붙여넣은 이미지는 400×300으로 클램핑하지만 원본 비율 유지 안 됨
@@ -14,6 +37,7 @@
 - [ ] **C. 자동 밀집** (보류) — 가변 크기 노트 bin packing 알고리즘 검토 필요. 최상위 그룹 기준 정렬 + 그룹 단위 정렬도 같이 검토
 
 기타:
+- [ ] **코드 사이닝** (공개 배포 시점에) — SignPath.io Foundation 신청(OSS 무료 EV) 또는 Microsoft Trusted Signing 가입. workflow에 서명 단계 추가
 - [ ] 캔버스 뷰 상태(pan/zoom) 노트북별 DB 저장/복원
 - [ ] 노트 색상 변경 기능
 - [ ] 노트북 드래그 정렬 (사이드바)
@@ -21,7 +45,6 @@
 - [ ] "여기로 이동" — 화면 밖 노트로 뷰 이동
 - [ ] 백업·Export·Import (SQLite + 이미지 zip)
 - [ ] 트레이 아이콘 커스텀 (현재 `SystemIcons.Application`)
-- [ ] 단일 인스턴스 보장 (Mutex)
 - [ ] DPI 스케일 변경 시 오버레이 위치 보정 (현재는 픽셀 단위 저장만)
 - [ ] 다국어
 

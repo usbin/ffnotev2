@@ -45,6 +45,17 @@ public partial class DraggableNoteControl : UserControl
 
     private NoteItem? Item => DataContext as NoteItem;
 
+    private static bool IsInsideTextBox(object? source)
+    {
+        DependencyObject? d = source as DependencyObject;
+        while (d is not null)
+        {
+            if (d is TextBox) return true;
+            d = System.Windows.Media.VisualTreeHelper.GetParent(d);
+        }
+        return false;
+    }
+
     private Canvas? FindParentCanvas()
     {
         DependencyObject? cur = this;
@@ -108,12 +119,6 @@ public partial class DraggableNoteControl : UserControl
         _dragGroup.Clear();
     }
 
-    private void Delete_Click(object sender, RoutedEventArgs e)
-    {
-        if (Item is null) return;
-        App.MainVM.DeleteNote(Item);
-    }
-
     private void TextDisplay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ClickCount != 2) return;
@@ -147,6 +152,13 @@ public partial class DraggableNoteControl : UserControl
     private void UserControl_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (Item is null) return;
+        // 다른 노트의 TextBox에서 편집 중이라면 LostFocus를 트리거해 표시 모드로 복귀시킴.
+        // TextBox 내부(글자 사이 클릭으로 캐럿 이동) 클릭은 제외해서 편집 흐름을 유지 —
+        // 단순히 `e.OriginalSource is TextBox` 체크는 부족함. WPF TextBox의 OriginalSource는
+        // 내부 visual(TextBoxView 등)이므로 visual tree를 거슬러 올라가 TextBox 부모를 찾아야 함.
+        if (!IsInsideTextBox(e.OriginalSource) && Window.GetWindow(this) is MainWindow mw)
+            mw.FocusCanvas();
+
         var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
         if (shift)
         {
@@ -191,7 +203,7 @@ public partial class DraggableNoteControl : UserControl
         if (Item is null) return;
         var canvas = FindParentCanvas();
         if (canvas is null) return;
-        _resizeEdge = (sender as FrameworkElement)?.Tag as string ?? "Corner";
+        _resizeEdge = (sender as FrameworkElement)?.Tag as string ?? "BottomRight";
         var group = App.MainVM.SelectedNotes.ToList();
         if (!group.Contains(Item)) group = new List<NoteItem> { Item };
         _resizeGroup = group.Select(n => (n, n.X, n.Y, n.Width, n.Height)).ToList();
@@ -206,38 +218,38 @@ public partial class DraggableNoteControl : UserControl
         var mouseNow = Mouse.GetPosition(canvas);
         var dx = mouseNow.X - _resizeMouseStart.X;
         var dy = mouseNow.Y - _resizeMouseStart.Y;
+        const double minW = 80, minH = 40;
         foreach (var (it, sx, sy, sw, sh) in _resizeGroup)
         {
-            switch (_resizeEdge)
+            // 좌/상은 X/Y와 W/H 동시 변경(반대편 엣지 고정), 우/하는 W/H만
+            bool left = _resizeEdge is "Left" or "TopLeft" or "BottomLeft";
+            bool right = _resizeEdge is "Right" or "TopRight" or "BottomRight";
+            bool top = _resizeEdge is "Top" or "TopLeft" or "TopRight";
+            bool bottom = _resizeEdge is "Bottom" or "BottomLeft" or "BottomRight";
+
+            if (right)
             {
-                case "Right":
-                    it.Width = Math.Max(80, App.MainVM.MaybeSnap(sw + dx));
-                    break;
-                case "Bottom":
-                    it.Height = Math.Max(40, App.MainVM.MaybeSnap(sh + dy));
-                    break;
-                case "Left":
-                {
-                    var right = sx + sw;
-                    var newX = App.MainVM.MaybeSnap(sx + dx);
-                    if (right - newX < 80) newX = right - 80;
-                    it.X = newX;
-                    it.Width = right - newX;
-                    break;
-                }
-                case "Top":
-                {
-                    var bottom = sy + sh;
-                    var newY = App.MainVM.MaybeSnap(sy + dy);
-                    if (bottom - newY < 40) newY = bottom - 40;
-                    it.Y = newY;
-                    it.Height = bottom - newY;
-                    break;
-                }
-                default: // Corner
-                    it.Width = Math.Max(80, App.MainVM.MaybeSnap(sw + dx));
-                    it.Height = Math.Max(40, App.MainVM.MaybeSnap(sh + dy));
-                    break;
+                it.Width = Math.Max(minW, App.MainVM.MaybeSnap(sw + dx));
+            }
+            if (left)
+            {
+                var rightEdge = sx + sw;
+                var newX = App.MainVM.MaybeSnap(sx + dx);
+                if (rightEdge - newX < minW) newX = rightEdge - minW;
+                it.X = newX;
+                it.Width = rightEdge - newX;
+            }
+            if (bottom)
+            {
+                it.Height = Math.Max(minH, App.MainVM.MaybeSnap(sh + dy));
+            }
+            if (top)
+            {
+                var bottomEdge = sy + sh;
+                var newY = App.MainVM.MaybeSnap(sy + dy);
+                if (bottomEdge - newY < minH) newY = bottomEdge - minH;
+                it.Y = newY;
+                it.Height = bottomEdge - newY;
             }
         }
     }

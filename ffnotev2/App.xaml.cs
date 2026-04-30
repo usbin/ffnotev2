@@ -5,6 +5,7 @@ using System.Windows.Interop;
 using ffnotev2.Dialogs;
 using ffnotev2.Services;
 using ffnotev2.ViewModels;
+using Velopack;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
 
@@ -12,6 +13,20 @@ namespace ffnotev2;
 
 public partial class App : Application
 {
+    /// <summary>
+    /// 명시적 진입점. Velopack 훅 명령(--veloapp-install / --veloapp-firstrun /
+    /// --veloapp-updated 등)을 가장 먼저 처리한 뒤 정상 흐름이면 WPF Application을 시작한다.
+    /// 단일 인스턴스 mutex는 OnStartup 안에서 처리되므로 여기서는 건드리지 않음.
+    /// </summary>
+    [STAThread]
+    public static void Main(string[] args)
+    {
+        VelopackApp.Build().Run();
+        var app = new App();
+        app.InitializeComponent();
+        app.Run();
+    }
+
     // 사용자 단위로 식별되는 단일 인스턴스 가드용 이름. 한 사용자 환경에서 한 프로세스만 허용.
     private const string SingletonMutexName = "Local\\ffnotev2-singleton-{8B5C7E2F-3A4D-4E1F-9B6A-1C2D3E4F5A6B}";
     private const string SingletonShowEventName = "Local\\ffnotev2-show-{8B5C7E2F-3A4D-4E1F-9B6A-1C2D3E4F5A6B}";

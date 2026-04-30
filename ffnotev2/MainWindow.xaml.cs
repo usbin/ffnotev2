@@ -31,10 +31,17 @@ public partial class MainWindow : Window
     private bool _marqueeActive;
     private Point _marqueeStart;
 
+    // 우클릭 down 시점의 원본 visual을 저장해 up 시 컨텍스트 메뉴 대상 식별에 사용.
+    // 캔버스가 마우스 캡처 후 MouseRightButtonUp의 OriginalSource는 캔버스로 바뀌므로
+    // down 시점에 저장해야 노트/그룹을 정확히 식별 가능.
+    private DependencyObject? _rightClickOrigin;
+
     public MainWindow()
     {
         InitializeComponent();
         DataContext = App.MainVM;
+        var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        Title = ver is null ? "ffnote v2" : $"ffnote v2 — v{ver.Major}.{ver.Minor}.{ver.Build}";
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -42,6 +49,9 @@ public partial class MainWindow : Window
         base.OnSourceInitialized(e);
         _hotkey.Initialize(this);
         ReregisterHotkeys();
+
+        // 시작 시 백그라운드로 GitHub Releases 새 버전 확인. 설치되지 않은 개발 빌드에서는 즉시 반환.
+        _ = new UpdateService().CheckAndPromptAsync(this);
     }
 
     /// <summary>설정에 따라 모든 글로벌 핫키 등록. 일부 실패하면 false.</summary>
@@ -104,15 +114,14 @@ public partial class MainWindow : Window
             }
         }
 
-        // Ctrl+G: 선택 노트로 그룹 만들기. Ctrl+Shift+G: 선택된 그룹 해제
+        // Ctrl+G: 선택 노트로 그룹 만들기. Ctrl+Shift+G: 선택된 그룹 해제(멤버 처리는 다이얼로그)
         if (e.Key == Key.G && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control
             && e.OriginalSource is not TextBox)
         {
             var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
             if (shift)
             {
-                foreach (var g in App.MainVM.SelectedGroups.ToList())
-                    App.MainVM.DeleteGroup(g);
+                DeleteGroupsWithPrompt(App.MainVM.SelectedGroups.ToList());
             }
             else
             {
@@ -142,13 +151,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Delete: 비편집 + 선택 노트들 삭제
+        // Delete: 비편집 + 선택 노트/그룹 삭제 (그룹은 멤버 처리 다이얼로그)
         if (e.Key == Key.Delete && e.OriginalSource is not TextBox)
         {
-            var sel = App.MainVM.SelectedNotes.ToList();
-            if (sel.Count > 0)
+            var notes = App.MainVM.SelectedNotes.ToList();
+            var groups = App.MainVM.SelectedGroups.ToList();
+            if (notes.Count > 0 || groups.Count > 0)
             {
-                foreach (var n in sel) App.MainVM.DeleteNote(n);
+                DeleteGroupsWithPrompt(groups, notes);
                 e.Handled = true;
                 return;
             }
@@ -381,6 +391,12 @@ public partial class MainWindow : Window
         if (e.ChangedButton != MouseButton.Middle && e.ChangedButton != MouseButton.Right) return;
         if (_panButton is not null) return;
 
+        // 우클릭은 항상 팬 후보로 진입(노트/그룹 위에서도). 이동 없이 떼었을 때만 메뉴.
+        // 마우스 캡처로 노트의 MouseRightButtonUp이 막혀도, _rightClickOrigin에 저장한
+        // 원본 visual로 메뉴 대상(노트/그룹)을 식별한다.
+        if (e.ChangedButton == MouseButton.Right)
+            _rightClickOrigin = e.OriginalSource as DependencyObject;
+
         _panButton = e.ChangedButton;
         _panStart = e.GetPosition(CanvasArea);
         _panStartTx = CanvasTranslate.X;
@@ -473,12 +489,16 @@ public partial class MainWindow : Window
         if (CanvasArea.IsMouseCaptured) CanvasArea.ReleaseMouseCapture();
     }
 
+    // 노트뿐 아니라 그룹(헤더/리사이즈 핸들)에 들어간 클릭도 마키 차단 대상.
+    // CanvasArea가 generic MouseDown으로 좌클릭을 처리하므로, 그룹의 specific MouseLeftButtonDown
+    // 핸들러가 e.Handled를 세팅해도 마키 시작을 막을 수 없어서 여기서 시각 트리 검사로 차단.
     private static bool IsOriginInsideNote(object? originalSource)
     {
         DependencyObject? d = originalSource as DependencyObject;
         while (d is not null)
         {
             if (d is Controls.DraggableNoteControl) return true;
+            if (d is Controls.GroupBoxControl) return true;
             d = VisualTreeHelper.GetParent(d);
         }
         return false;
@@ -547,53 +567,114 @@ public partial class MainWindow : Window
             EndPan();
             if (wasPan)
             {
+                _rightClickOrigin = null;
                 e.Handled = true;
                 return;
             }
         }
 
         if (App.MainVM.CurrentNotebook is null) return;
-
-        // 노트 위에서 우클릭한 경우 무시 (빈 캔버스 영역만 처리)
-        DependencyObject? d = e.OriginalSource as DependencyObject;
-        while (d is not null)
-        {
-            if (d is Controls.DraggableNoteControl) return;
-            d = VisualTreeHelper.GetParent(d);
-        }
-
         if (sender is not IInputElement el) return;
+
+        // 우클릭 대상 식별 — 캔버스 캡처로 e.OriginalSource는 캔버스로 바뀔 수 있어
+        // down 시점에 저장한 원본 visual(_rightClickOrigin)을 우선 사용
+        var origin = _rightClickOrigin ?? e.OriginalSource as DependencyObject;
+        _rightClickOrigin = null;
+        var targetNote = FindNoteFromVisual(origin);
+        var targetGroup = FindGroupFromVisual(origin);
+
         var screen = e.GetPosition(el);
         var (worldX, worldY) = ScreenToWorld(screen);
 
         var menu = new ContextMenu();
+
         var addText = new MenuItem { Header = "새 텍스트 노트" };
         addText.Click += (_, _) => App.MainVM.AddTextNote(string.Empty, worldX, worldY);
         menu.Items.Add(addText);
 
         var selectedCount = App.MainVM.SelectedNotes.Count();
+        var selectedGroups = App.MainVM.SelectedGroups.ToList();
+
         if (selectedCount >= 1)
         {
+            menu.Items.Add(new Separator());
             var groupItem = new MenuItem { Header = $"그룹 만들기 ({selectedCount}개) — Ctrl+G" };
             groupItem.Click += (_, _) => App.MainVM.CreateGroupFromSelectedNotes();
-            menu.Items.Add(new Separator());
             menu.Items.Add(groupItem);
         }
-        var selectedGroups = App.MainVM.SelectedGroups.ToList();
         if (selectedGroups.Count >= 1)
         {
-            var ungroup = new MenuItem { Header = $"그룹 해제 ({selectedGroups.Count}개) — Ctrl+Shift+G" };
-            ungroup.Click += (_, _) =>
-            {
-                foreach (var g in selectedGroups) App.MainVM.DeleteGroup(g);
-            };
             if (selectedCount < 1) menu.Items.Add(new Separator());
+            var ungroup = new MenuItem { Header = $"그룹 해제 ({selectedGroups.Count}개) — Ctrl+Shift+G" };
+            ungroup.Click += (_, _) => DeleteGroupsWithPrompt(selectedGroups);
             menu.Items.Add(ungroup);
+        }
+
+        // 우클릭 대상별 추가 항목
+        if (targetNote is not null)
+        {
+            menu.Items.Add(new Separator());
+            var del = new MenuItem { Header = "삭제하기 (Delete)" };
+            del.Click += (_, _) => App.MainVM.DeleteNote(targetNote);
+            menu.Items.Add(del);
+        }
+        else if (targetGroup is not null && !selectedGroups.Contains(targetGroup))
+        {
+            // 위에서 처리되지 않은 그룹을 직접 우클릭한 경우
+            menu.Items.Add(new Separator());
+            var ungroupOne = new MenuItem { Header = "그룹 해제 (Ctrl+Shift+G)" };
+            ungroupOne.Click += (_, _) => DeleteGroupsWithPrompt(new List<Models.NoteGroup> { targetGroup });
+            menu.Items.Add(ungroupOne);
         }
 
         menu.PlacementTarget = (UIElement)sender;
         menu.IsOpen = true;
         e.Handled = true;
+    }
+
+    private static Models.NoteGroup? FindGroupFromVisual(DependencyObject? d)
+    {
+        while (d is not null)
+        {
+            if (d is Controls.GroupBoxControl gc && gc.DataContext is Models.NoteGroup g) return g;
+            d = VisualTreeHelper.GetParent(d);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// 그룹 삭제 + 선택 노트 삭제 통합. 그룹에 멤버 노트가 (extraNotes 외에 추가로) 있으면
+    /// "일괄 삭제 / 그룹만 삭제 / 취소" 다이얼로그로 확인. 멤버가 없거나 모두 extraNotes에
+    /// 포함되면 다이얼로그 없이 즉시 삭제.
+    /// </summary>
+    /// <param name="groups">삭제할 그룹들</param>
+    /// <param name="extraNotes">함께 삭제할 노트들 (이미 명시적으로 선택된 것). 그룹 멤버와 중복은 자동 제거.</param>
+    private void DeleteGroupsWithPrompt(IList<Models.NoteGroup> groups, IList<Models.NoteItem>? extraNotes = null)
+    {
+        extraNotes ??= Array.Empty<Models.NoteItem>();
+        if (groups.Count == 0 && extraNotes.Count == 0) return;
+
+        var memberNotes = App.MainVM.GetMemberNotesOf(groups)
+            .Except(extraNotes)
+            .ToList();
+
+        bool deleteMembers = false;
+        if (groups.Count > 0 && memberNotes.Count > 0)
+        {
+            var dlg = new Dialogs.GroupDeleteDialog(memberNotes.Count) { Owner = this };
+            dlg.ShowDialog();
+            switch (dlg.Choice)
+            {
+                case Dialogs.GroupDeleteChoice.Cancel: return;
+                case Dialogs.GroupDeleteChoice.DeleteAll: deleteMembers = true; break;
+                case Dialogs.GroupDeleteChoice.GroupOnly: deleteMembers = false; break;
+            }
+        }
+
+        foreach (var n in extraNotes) App.MainVM.DeleteNote(n);
+        if (deleteMembers)
+            foreach (var n in memberNotes) App.MainVM.DeleteNote(n);
+        foreach (var g in groups) App.MainVM.DeleteGroup(g);
     }
 
     private void NotebookMenu_Click(object sender, RoutedEventArgs e)

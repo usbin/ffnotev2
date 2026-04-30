@@ -36,17 +36,8 @@
                     MouseMove="TitleBar_MouseMove"
                     MouseLeftButtonUp="TitleBar_MouseLeftButtonUp"
                     Cursor="SizeAll">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="{Binding Type}" Foreground="#FFAAAAAA"
-                               VerticalAlignment="Center" Margin="6,0,0,0" FontSize="11"/>
-                    <Button Grid.Column="1" Content="×" Width="22" Height="22"
-                            Background="Transparent" BorderThickness="0" Foreground="#FFCCCCCC"
-                            Click="Delete_Click"/>
-                </Grid>
+                <TextBlock Text="{Binding Type}" Foreground="#FFAAAAAA"
+                           VerticalAlignment="Center" Margin="6,0,0,0" FontSize="11"/>
             </Border>
 
             <!-- 콘텐츠 영역 -->
@@ -134,17 +125,45 @@
                 </Thumb.Template>
             </Thumb>
 
-            <!-- 코너 리사이즈 핸들 (우하단, 가시적, 외곽보다 위에 배치 — 14×14 영역에서 우선 적용) -->
-            <Thumb Tag="Corner" Width="14" Height="14"
+            <!-- 4 코너 리사이즈 핸들 (대각선, 10×10 투명, 외곽 thumb보다 위에 배치 — 코너 영역에서 우선 적용) -->
+            <Thumb Tag="TopLeft" Width="10" Height="10"
+                   HorizontalAlignment="Left" VerticalAlignment="Top"
+                   Cursor="SizeNWSE"
+                   DragStarted="ResizeThumb_DragStarted"
+                   DragDelta="ResizeThumb_DragDelta"
+                   DragCompleted="ResizeThumb_DragCompleted">
+                <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+                </Thumb.Template>
+            </Thumb>
+            <Thumb Tag="TopRight" Width="10" Height="10"
+                   HorizontalAlignment="Right" VerticalAlignment="Top"
+                   Cursor="SizeNESW"
+                   DragStarted="ResizeThumb_DragStarted"
+                   DragDelta="ResizeThumb_DragDelta"
+                   DragCompleted="ResizeThumb_DragCompleted">
+                <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+                </Thumb.Template>
+            </Thumb>
+            <Thumb Tag="BottomLeft" Width="10" Height="10"
+                   HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                   Cursor="SizeNESW"
+                   DragStarted="ResizeThumb_DragStarted"
+                   DragDelta="ResizeThumb_DragDelta"
+                   DragCompleted="ResizeThumb_DragCompleted">
+                <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+                </Thumb.Template>
+            </Thumb>
+            <Thumb Tag="BottomRight" Width="10" Height="10"
                    HorizontalAlignment="Right" VerticalAlignment="Bottom"
                    Cursor="SizeNWSE"
                    DragStarted="ResizeThumb_DragStarted"
                    DragDelta="ResizeThumb_DragDelta"
                    DragCompleted="ResizeThumb_DragCompleted">
                 <Thumb.Template>
-                    <ControlTemplate TargetType="Thumb">
-                        <Path Data="M 0,14 L 14,14 L 14,0 Z" Fill="#FF777777"/>
-                    </ControlTemplate>
+                    <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
                 </Thumb.Template>
             </Thumb>
         </Grid>

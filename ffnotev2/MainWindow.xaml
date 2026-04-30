@@ -117,14 +117,16 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <!-- 노트 레이어 (그룹 앞) -->
+                <!-- 노트 레이어 (그룹 앞).
+                     Background=null로 둬야 노트가 없는 영역의 클릭이 통과돼
+                     뒤에 있는 그룹의 헤더/리사이즈 핸들이 hit-test로 클릭을 받을 수 있음. -->
                 <ItemsControl x:Name="NotesItemsControl"
                               ItemsSource="{Binding CurrentNotebook.Notes}"
                               Focusable="False"
                               FocusVisualStyle="{x:Null}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <Canvas Background="Transparent" ClipToBounds="False"/>
+                            <Canvas Background="{x:Null}" ClipToBounds="False"/>
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemContainerStyle>

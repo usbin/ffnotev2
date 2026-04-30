@@ -77,12 +77,15 @@ ItemsControl.RenderTransform = TransformGroup
   MouseMove → CanvasTranslate.X/Y = startTx/Ty + Δ
   MouseUp(Middle) → EndPan()
 
-[우클릭 드래그] (4px 임계값 후 팬)
+[우클릭 드래그] (4px 임계값 후 팬, 노트/그룹 위 포함 모든 영역)
   MouseDown(Right) → _panButton=Right, _panMoved=false, CaptureMouse
+                     + _rightClickOrigin = e.OriginalSource (메뉴 대상 식별용)
   MouseMove → 임계값 초과 시 _panMoved=true → translate 갱신
   MouseRightButtonUp (MouseUp보다 먼저 발생할 수 있어 여기서 직접 정리)
     → wasPan이면 e.Handled=true (컨텍스트 메뉴 억제) + EndPan()
-    → wasPan 아니면 컨텍스트 메뉴 표시 (단순 우클릭)
+    → wasPan 아니면 _rightClickOrigin으로 노트/그룹 식별 후 통합 메뉴 빌드:
+       항상 "새 텍스트 노트" / 선택 노트·그룹 있으면 "그룹 만들기/해제 (N개)" /
+       대상이 노트면 "삭제하기" / 대상이 비선택 그룹이면 "그룹 해제"
 
 [Ctrl+휠] PreviewMouseWheel — 자식 ScrollViewer가 먹기 전 터널 단계에서 처리
   → 마우스 위치를 world 좌표로 환산 → 새 scale (Clamp 0.2~4.0)

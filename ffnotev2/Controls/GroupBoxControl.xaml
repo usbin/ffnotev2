@@ -2,25 +2,115 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Width="{Binding Width}" Height="{Binding Height}"
-             Background="Transparent"
-             Cursor="SizeAll">
-    <!-- 점선 사각형. Stroke만, Fill 없음 → 내부 클릭은 통과되어 노트가 작동.
-         Stroke 부분(테두리)에서만 hit-test되어 그룹 드래그/선택 가능 -->
-    <Rectangle StrokeThickness="2" StrokeDashArray="4 3"
-               Fill="{x:Null}"
-               MouseLeftButtonDown="GroupBox_MouseLeftButtonDown"
-               MouseMove="GroupBox_MouseMove"
-               MouseLeftButtonUp="GroupBox_MouseLeftButtonUp"
-               MouseRightButtonUp="GroupBox_MouseRightButtonUp">
-        <Rectangle.Style>
-            <Style TargetType="Rectangle">
-                <Setter Property="Stroke" Value="#FF888888"/>
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                        <Setter Property="Stroke" Value="#FF5599FF"/>
-                    </DataTrigger>
-                </Style.Triggers>
-            </Style>
-        </Rectangle.Style>
-    </Rectangle>
+             Background="{x:Null}">
+    <!-- 본문은 Background=null로 hit-test 통과 (멤버 노트 클릭 보존).
+         시각적 외곽선(점선)도 IsHitTestVisible=False로 둬서 클릭은 헤더/엣지/코너로만 들어감. -->
+    <Grid>
+        <!-- 점선 외곽 (시각 표시 전용) -->
+        <Rectangle StrokeThickness="2" StrokeDashArray="4 3"
+                   Fill="{x:Null}"
+                   IsHitTestVisible="False">
+            <Rectangle.Style>
+                <Style TargetType="Rectangle">
+                    <Setter Property="Stroke" Value="#FF888888"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                            <Setter Property="Stroke" Value="#FF5599FF"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Rectangle.Style>
+        </Rectangle>
+
+        <!-- 헤더 (드래그/우클릭 메뉴) -->
+        <Border VerticalAlignment="Top" Height="22"
+                Background="#CC3C3C3C"
+                Cursor="SizeAll"
+                MouseLeftButtonDown="GroupBox_MouseLeftButtonDown"
+                MouseMove="GroupBox_MouseMove"
+                MouseLeftButtonUp="GroupBox_MouseLeftButtonUp">
+            <TextBlock Text="그룹" Foreground="#FFAAAAAA"
+                       Margin="6,0,0,0" VerticalAlignment="Center" FontSize="11"/>
+        </Border>
+
+        <!-- 엣지 리사이즈 (5px, 투명 hit-test) -->
+        <Thumb Tag="Top" HorizontalAlignment="Stretch" VerticalAlignment="Top" Height="5"
+               Cursor="SizeNS"
+               DragStarted="ResizeThumb_DragStarted"
+               DragDelta="ResizeThumb_DragDelta"
+               DragCompleted="ResizeThumb_DragCompleted">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+        <Thumb Tag="Bottom" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="5"
+               Cursor="SizeNS"
+               DragStarted="ResizeThumb_DragStarted"
+               DragDelta="ResizeThumb_DragDelta"
+               DragCompleted="ResizeThumb_DragCompleted">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+        <Thumb Tag="Left" HorizontalAlignment="Left" VerticalAlignment="Stretch" Width="5"
+               Cursor="SizeWE"
+               DragStarted="ResizeThumb_DragStarted"
+               DragDelta="ResizeThumb_DragDelta"
+               DragCompleted="ResizeThumb_DragCompleted">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+        <Thumb Tag="Right" HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="5"
+               Cursor="SizeWE"
+               DragStarted="ResizeThumb_DragStarted"
+               DragDelta="ResizeThumb_DragDelta"
+               DragCompleted="ResizeThumb_DragCompleted">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+
+        <!-- 4 코너 리사이즈 핸들 (대각선, 10×10 투명, 엣지 thumb보다 위) -->
+        <Thumb Tag="TopLeft" Width="10" Height="10"
+               HorizontalAlignment="Left" VerticalAlignment="Top"
+               Cursor="SizeNWSE"
+               DragStarted="ResizeThumb_DragStarted"
+               DragDelta="ResizeThumb_DragDelta"
+               DragCompleted="ResizeThumb_DragCompleted">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+        <Thumb Tag="TopRight" Width="10" Height="10"
+               HorizontalAlignment="Right" VerticalAlignment="Top"
+               Cursor="SizeNESW"
+               DragStarted="ResizeThumb_DragStarted"
+               DragDelta="ResizeThumb_DragDelta"
+               DragCompleted="ResizeThumb_DragCompleted">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+        <Thumb Tag="BottomLeft" Width="10" Height="10"
+               HorizontalAlignment="Left" VerticalAlignment="Bottom"
+               Cursor="SizeNESW"
+               DragStarted="ResizeThumb_DragStarted"
+               DragDelta="ResizeThumb_DragDelta"
+               DragCompleted="ResizeThumb_DragCompleted">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+        <Thumb Tag="BottomRight" Width="10" Height="10"
+               HorizontalAlignment="Right" VerticalAlignment="Bottom"
+               Cursor="SizeNWSE"
+               DragStarted="ResizeThumb_DragStarted"
+               DragDelta="ResizeThumb_DragDelta"
+               DragCompleted="ResizeThumb_DragCompleted">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+    </Grid>
 </UserControl>

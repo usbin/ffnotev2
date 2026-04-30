@@ -51,14 +51,16 @@ public partial class MainViewModel : ObservableObject
         foreach (var g in CurrentNotebook.Groups) g.IsSelected = (g == group);
     }
 
-    /// <summary>선택된 노트들의 bbox + padding으로 새 그룹을 생성하고 DB에 저장.</summary>
+    /// <summary>선택된 노트들의 bbox + padding으로 새 그룹을 생성하고 DB에 저장.
+    /// 상단은 헤더(22px) + 여백을 확보해 헤더가 노트에 가려지지 않도록 30px 패딩.</summary>
     public NoteGroup? CreateGroupFromSelectedNotes(double padding = 10)
     {
         if (CurrentNotebook is null) return null;
         var selected = SelectedNotes.ToList();
         if (selected.Count == 0) return null;
+        const double headerSpace = 30; // 헤더 22px + 여유 8px
         var minX = selected.Min(n => n.X) - padding;
-        var minY = selected.Min(n => n.Y) - padding;
+        var minY = selected.Min(n => n.Y) - headerSpace;
         var maxX = selected.Max(n => n.X + n.Width) + padding;
         var maxY = selected.Max(n => n.Y + n.Height) + padding;
         var g = new NoteGroup
@@ -86,6 +88,19 @@ public partial class MainViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(group);
         _db.UpdateGroup(group);
+    }
+
+    /// <summary>여러 그룹의 멤버 노트들의 합집합. 중복 제거.</summary>
+    public IList<NoteItem> GetMemberNotesOf(IEnumerable<NoteGroup> groups)
+    {
+        if (CurrentNotebook is null) return Array.Empty<NoteItem>();
+        var set = new HashSet<NoteItem>();
+        foreach (var g in groups)
+        {
+            var (notes, _) = GetMembersOf(g);
+            foreach (var n in notes) set.Add(n);
+        }
+        return set.ToList();
     }
 
     /// <summary>그룹의 bbox에 완전 내포된 모든 NoteItem과 NoteGroup(자기 자신 제외) 반환.</summary>
@@ -344,7 +359,7 @@ public partial class MainViewModel : ObservableObject
             CurrentNotebook = Notebooks.FirstOrDefault();
     }
 
-    public NoteItem AddTextNote(string text, double x, double y)
+    public NoteItem AddTextNote(string text, double x, double y, bool autoEdit = true)
     {
         if (CurrentNotebook is null) throw new InvalidOperationException("CurrentNotebook이 없습니다.");
         var note = new NoteItem
@@ -356,7 +371,7 @@ public partial class MainViewModel : ObservableObject
             Y = MaybeSnap(y),
             Width = 200,
             Height = 100,
-            IsEditing = true
+            IsEditing = autoEdit
         };
         note.Id = _db.AddNote(note);
         CurrentNotebook.Notes.Add(note);
@@ -473,7 +488,8 @@ public partial class MainViewModel : ObservableObject
             if (bmp is not null)
             {
                 var path = SaveImageToFile(bmp);
-                AddImageNote(path, canvasMouseX, canvasMouseY);
+                var note = AddImageNote(path, canvasMouseX, canvasMouseY);
+                SelectOnly(note);
                 return;
             }
 
@@ -485,15 +501,18 @@ public partial class MainViewModel : ObservableObject
                 text = text?.Trim();
                 if (string.IsNullOrEmpty(text)) return;
 
+                NoteItem note;
                 if (Uri.TryCreate(text, UriKind.Absolute, out var uri)
                     && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
                 {
-                    AddLinkNote(text, canvasMouseX, canvasMouseY);
+                    note = AddLinkNote(text, canvasMouseX, canvasMouseY);
                 }
                 else
                 {
-                    AddTextNote(text, canvasMouseX, canvasMouseY);
+                    // 붙여넣기로 만든 텍스트 노트는 편집 모드 아님 — 선택 상태로만 시작
+                    note = AddTextNote(text, canvasMouseX, canvasMouseY, autoEdit: false);
                 }
+                SelectOnly(note);
                 return;
             }
 

@@ -8,6 +8,14 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- 자동 업데이트 (Velopack) — 명시적 Main 진입점이 VelopackApp.Build().Run()을 먼저 호출 -->
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <StartupObject>ffnotev2.App</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,8 +24,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- App.xaml의 자동 Main 생성 비활성화 — App.xaml.cs의 명시적 [STAThread] Main을 사용 (Velopack 훅 우선 처리) -->
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.7" />
+    <PackageReference Include="Velopack" Version="0.0.*" />
   </ItemGroup>
 
 </Project>
