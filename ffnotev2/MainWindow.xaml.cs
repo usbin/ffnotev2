@@ -298,6 +298,11 @@ public partial class MainWindow : Window
         ZoomLabel.Text = "100%";
     }
 
+    private void BulkSnap_Click(object sender, RoutedEventArgs e)
+    {
+        App.MainVM.BulkSnap();
+    }
+
     private void Canvas_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
     {
         // 우클릭 팬 종료 처리 (이 이벤트가 MouseUp보다 먼저 올 수 있어서 여기서 직접 처리)

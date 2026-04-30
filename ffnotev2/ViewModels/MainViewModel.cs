@@ -96,6 +96,66 @@ public partial class MainViewModel : ObservableObject
         return (notes, groups);
     }
 
+    /// <summary>
+    /// 현재 노트북의 모든 노트를 일괄 격자 정렬:
+    /// 1) 위치는 좌상단으로 floor 스냅, 크기는 ceil 스냅
+    /// 2) (Y,X) 오름차순으로 처리하면서 이미 배치된 노트와 겹치면 우측으로 격자 단위 시프트
+    /// 3) 같은 행에서 너무 오른쪽으로 가면 한 행 아래로 내리고 X를 원래 위치로 리셋
+    /// </summary>
+    public void BulkSnap()
+    {
+        if (CurrentNotebook is null) return;
+        var notes = CurrentNotebook.Notes.ToList();
+        if (notes.Count == 0) return;
+
+        // 1) 좌상단 floor + 사이즈 ceil
+        foreach (var n in notes)
+        {
+            n.X = Math.Floor(n.X / GridSize) * GridSize;
+            n.Y = Math.Floor(n.Y / GridSize) * GridSize;
+            n.Width = Math.Ceiling(n.Width / GridSize) * GridSize;
+            n.Height = Math.Ceiling(n.Height / GridSize) * GridSize;
+        }
+
+        // 2) (Y, X) 오름차순으로 처리
+        notes.Sort((a, b) =>
+        {
+            var c = a.Y.CompareTo(b.Y);
+            return c != 0 ? c : a.X.CompareTo(b.X);
+        });
+
+        // 3) 충돌 해결 — 우측 시프트 우선, 한 행 너무 길어지면 아래 행으로 wrap
+        var placed = new List<NoteItem>();
+        const int maxRightStepsPerRow = 200;
+        const int hardSafety = 50_000;
+        foreach (var n in notes)
+        {
+            var origX = n.X;
+            var rightSteps = 0;
+            var safety = 0;
+            while (placed.Any(p => Overlaps(n, p)))
+            {
+                n.X += GridSize;
+                rightSteps++;
+                if (rightSteps > maxRightStepsPerRow)
+                {
+                    rightSteps = 0;
+                    n.X = origX;
+                    n.Y += GridSize;
+                }
+                if (++safety > hardSafety) break;
+            }
+            placed.Add(n);
+        }
+
+        // 4) DB 저장 (위치 + 크기)
+        foreach (var n in notes) _db.UpdateNote(n);
+    }
+
+    private static bool Overlaps(NoteItem a, NoteItem b) =>
+        a.X < b.X + b.Width && a.X + a.Width > b.X
+     && a.Y < b.Y + b.Height && a.Y + a.Height > b.Y;
+
     /// <summary>현재 노트북에서 from을 기준으로 지정 방향에서 가장 가까운 텍스트 노트 반환.</summary>
     public NoteItem? FindNeighborNote(NoteItem from, string direction)
     {

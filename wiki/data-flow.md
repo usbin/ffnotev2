@@ -140,6 +140,48 @@ DraggableNoteControl.UserControl_PreviewMouseLeftButtonDown
 선택된 모든 노트가 같은 Δ만큼 이동/크기변경 (절대). 단일 노트 동작과 자연스럽게 일치 (group.Count==1).
 ```
 
+## 그룹 (NoteGroup)
+
+```
+[생성]
+선택된 노트들 → Ctrl+G or 우클릭 메뉴 "그룹 만들기"
+  → MainViewModel.CreateGroupFromSelectedNotes(padding=10)
+  → 선택 bbox + 패딩으로 NoteGroup 생성, DB 저장, CurrentNotebook.Groups에 추가
+  → DataTemplate으로 GroupBoxControl 생성 (그룹 ItemsControl 내)
+
+[멤버십 (동적)]
+GetMembersOf(group) → bbox 완전 내포된 NoteItem + NoteGroup(자기 제외) 반환
+  → 노트가 드래그로 그룹 밖으로 나가면 자동으로 비멤버, 안으로 들어오면 자동으로 멤버
+
+[드래그]
+GroupBox 점선 클릭 (Stroke만 hit-test, 내부 통과 → 노트는 그대로 작동)
+  → 드래그 시작 시점에 멤버 스냅샷 (notes + nested groups)
+  → MouseMove: 그룹 자신 + 멤버 모두 같은 Δ로 이동 (스냅 토글 ON시 격자)
+  → MouseUp: UpdateGroup(this) + UpdateNotePosition(각 멤버)
+  → 중첩: A ⊂ B 인 경우 B 드래그 시 A의 bbox도 B 안에 잡혀서 A와 A의 자손까지 모두 이동
+
+[해제]
+Ctrl+Shift+G (선택된 그룹들) or 우클릭 → "그룹 해제"
+  → DeleteGroup → DB 삭제, 컬렉션에서 제거. 노트는 그대로 (점선만 사라짐)
+
+[다중 선택]
+마키 인터섹트 또는 Shift+클릭으로 그룹과 노트를 동시에 선택 가능
+```
+
+## 일괄 스냅 (BulkSnap)
+
+```
+우하단 ⊟ 버튼 클릭 → MainViewModel.BulkSnap()
+  1) 전체 노트:
+     X = floor(X / 10) * 10, Y = floor(Y / 10) * 10  (좌상단 스냅)
+     W = ceil(W / 10) * 10,  H = ceil(H / 10) * 10   (사이즈 올림)
+  2) (Y, X) 오름차순 정렬
+  3) 처리 중인 노트가 이미 배치된 노트와 겹치면:
+       n.X += 10  (우측 시프트)
+       step > 200이면 → X 원위치, n.Y += 10 (아래 행으로 wrap, 같은 행에서 다시 시도)
+  4) 모든 노트의 위치/크기 DB 저장
+```
+
 ## 사이드바 토글
 
 ```

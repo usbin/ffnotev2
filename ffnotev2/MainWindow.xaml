@@ -169,6 +169,12 @@
                     Background="#AA222222" CornerRadius="3"
                     Visibility="{Binding HasCurrentNotebook, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
+                    <Button Width="22" Height="20" Margin="0,0,4,0"
+                            Background="Transparent" BorderThickness="0" Foreground="#FFCCCCCC"
+                            ToolTip="일괄 정렬 (전체 노트 좌상단 스냅 + 사이즈 ceil + 충돌 시 우/하 시프트)"
+                            Click="BulkSnap_Click">
+                        <TextBlock Text="⊟" FontSize="13"/>
+                    </Button>
                     <ToggleButton IsChecked="{Binding CurrentNotebook.SnapEnabled, Mode=TwoWay}"
                                   Width="22" Height="20" Margin="0,0,8,0"
                                   BorderThickness="0"

@@ -10,9 +10,8 @@
 
 ## TODO (다음 작업 후보)
 
-배치/선택 기능 로드맵 (확정 순서):
-- [ ] **B. 일괄 스냅** — 좌상단 floor + 사이즈 ceil + 2D 충돌 해결 (다음 작업)
-- [ ] **C. 자동 밀집** — 가변 크기 노트 packing (보류 — 알고리즘 미정). 최상위 그룹/그룹 단위 정렬
+배치 기능 로드맵:
+- [ ] **C. 자동 밀집** (보류) — 가변 크기 노트 bin packing 알고리즘 검토 필요. 최상위 그룹 기준 정렬 + 그룹 단위 정렬도 같이 검토
 
 기타:
 - [ ] 캔버스 뷰 상태(pan/zoom) 노트북별 DB 저장/복원
@@ -48,6 +47,7 @@
 - [x] **노트 외곽 4면 리사이즈 핸들** — 5px 투명 Thumb를 상/하/좌/우에 배치, sender.Tag로 단일 핸들러 분기. 좌/상 엣지는 X/Y와 W/H 동시 변경(반대편 엣지 고정). 코너(우하단) 14×14는 그대로 유지(외곽보다 위)
 - [x] **편집 중 Alt+방향키 인접 노트 이동** — `MainViewModel.FindNeighborNote`(중심점 거리 + 방향 콘 필터). DataContextChanged에서 PropertyChanged 구독 → 외부 IsEditing=true 변화도 감지해 BeginEdit
 - [x] **그룹 (NoteGroup)** — DB 테이블 `NoteGroups`(Id/NotebookId/X/Y/W/H). 멤버십은 동적(bbox 완전 내포). 그룹 점선 사각형 시각, Stroke만 hit-test 되어 내부 노트 클릭/마키 통과. 드래그 시작 시 `GetMembersOf`로 멤버 스냅샷, 그룹+멤버 모두 같은 Δ로 이동. Ctrl+G로 선택 노트 bbox+10px 패딩으로 그룹 생성, Ctrl+Shift+G/우클릭 메뉴로 해제. 노트와 그룹이 RenderTransform을 공유하도록 `Grid CanvasContent`로 묶음 — 그룹은 노트 뒤, 마키는 노트와 그룹 모두 인터섹트로 선택. 스냅 토글에 따라 그룹 드래그도 격자 정렬
+- [x] **일괄 스냅 (B)** — `MainViewModel.BulkSnap()`. 전체 노트 좌상단 floor + 사이즈 ceil. (Y,X) 오름차순 정렬 후 충돌 시 우측 시프트, 한 행이 너무 길어지면(200 step) X 원위치로 한 행 아래로 wrap. 우하단 ⊟ 버튼으로 발동
 - [x] **WPF 포커스 사각형 제거** — ItemsControl/ItemContainer/CanvasArea의 `FocusVisualStyle="{x:Null}"`
 
 ## 설계 결정
