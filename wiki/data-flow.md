@@ -98,6 +98,48 @@ ItemsControl.RenderTransform = TransformGroup
   뷰 초기화 버튼 (⟳) → scale=1, translate=0, ZoomLabel="100%"
 ```
 
+## 다중 선택 (마키 + Shift+클릭)
+
+```
+[마키 - 빈 캔버스 좌클릭 드래그]
+CanvasArea_MouseDown(Left)
+  → IsOriginInsideNote(원본 소스가 노트 자손인지 확인)
+     노트 위면 noop (노트의 PreviewMouseLeftButtonDown이 처리)
+     아니면 _marqueeActive=true, _marqueeStart 저장, CaptureMouse
+MouseMove → MarqueeRect 위치/크기 갱신 (CanvasArea-local 좌표, Margin/Width/Height)
+MouseUp(Left) → EndMarquee(end)
+  Δ < 4px → ClearSelection (단순 클릭 해제)
+  Δ ≥ 4px → ScreenToWorld로 양 끝 변환 → 인터섹트되는 모든 노트의 IsSelected=true
+  MarqueeRect.Visibility=Collapsed, ReleaseMouseCapture
+
+[Shift+클릭 - 노트 토글]
+DraggableNoteControl.UserControl_PreviewMouseLeftButtonDown
+  Shift held → IsSelected 토글, e.Handled=true (드래그/편집 차단)
+  미선택 + Shift 없음 → SelectOnly(this) (다른 선택 해제 후 이 노트만)
+  이미 선택 + Shift 없음 → noop (그룹 드래그가 진행되도록)
+
+[해제]
+빈 캔버스 단순 클릭 / Esc(편집 중 아닌 상태) → ClearSelection
+```
+
+## 일괄 드래그/리사이즈
+
+```
+[드래그] TitleBar_MouseLeftButtonDown
+  → 선택된 노트 목록 캡처. 클릭한 노트가 선택 안 됐으면 단일.
+  → _dragGroup = [(item, startX, startY), ...]
+  → MouseMove: 각 item.X = MaybeSnap(sx + Δx), Y 동일
+  → MouseUp: 각 item에 대해 UpdateNotePosition
+
+[리사이즈] Thumb.DragStarted
+  → _resizeGroup = [(item, startW, startH), ...]
+  → _resizeAccumDx/Dy = 0
+  → DragDelta: accum 누적 후 각 item.Width = Math.Max(80, MaybeSnap(sw + accumDx)), H 동일
+  → DragCompleted: 각 item에 대해 UpdateNoteContent
+
+선택된 모든 노트가 같은 Δ만큼 이동/크기변경 (절대). 단일 노트 동작과 자연스럽게 일치 (group.Count==1).
+```
+
 ## 사이드바 토글
 
 ```

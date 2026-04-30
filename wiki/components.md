@@ -5,7 +5,7 @@
 
 | 파일 | 클래스 | 설명 |
 |------|--------|------|
-| Models/NoteItem.cs | `NoteItem` | X/Y/Width/Height + Type(Text\|Image\|Link) + Content + `IsEditing`(transient, DB 미저장 — 새 노트 자동 편집 진입용). `ObservableObject` 상속으로 X/Y/Width/Height 변경 시 Canvas 자동 이동/리사이즈, `Content` 변경은 `MainViewModel`이 구독해 즉시 DB 저장 |
+| Models/NoteItem.cs | `NoteItem` | X/Y/Width/Height + Type(Text\|Image\|Link) + Content + `IsEditing`(transient — 새 노트 자동 편집 진입) + `IsSelected`(transient — 다중 선택). `ObservableObject` 상속으로 X/Y/Width/Height 변경 시 Canvas 자동 이동/리사이즈, `Content` 변경은 `MainViewModel`이 구독해 즉시 DB 저장 |
 | Models/NoteBook.cs | `NoteBook` | Name, ProcessName, Notes 컬렉션, `SnapEnabled`(노트북별 격자 스냅 토글, DB 영속, 기본 false). `ObservableProperty Name/ProcessName/SnapEnabled` |
 | Models/AppSettings.cs | `AppSettings` | `ShowMain`, `ToggleOverlay`, `ToggleClickThrough` (HotkeyBinding) + `OverlayOpacity` + `OverlayDraft` + `AutoStartOnLogin` + `OverlayLeft`/`OverlayTop` |
 | Models/HotkeyBinding.cs | `HotkeyBinding` | Modifiers + VirtualKey + `DisplayString` ("Ctrl+Alt+Z") |
@@ -24,15 +24,15 @@
 
 | 파일 | 클래스 | 역할 |
 |------|--------|------|
-| ViewModels/MainViewModel.cs | `MainViewModel` | Notebooks 관리, `AddTextNote/AddImageNote/AddLinkNote`(생성 좌표 조건부 스냅), `DeleteNote`, `UpdateNotePosition`, `UpdateNoteContent`, `PasteFromClipboard` (이미지·링크·텍스트 자동 분기), 노트 `PropertyChanged` 구독으로 `Content` 변경 시 즉시 DB 저장, NoteBook `PropertyChanged` 구독으로 `SnapEnabled` 변경 시 DB 저장. `GridSize=10` 상수 + `Snap(double)` 정적 헬퍼 + `MaybeSnap(double)` 인스턴스 메서드(현재 노트북 토글 반영) |
+| ViewModels/MainViewModel.cs | `MainViewModel` | Notebooks 관리, `AddTextNote/AddImageNote/AddLinkNote`(생성 좌표 조건부 스냅), `DeleteNote`, `UpdateNotePosition`, `UpdateNoteContent`, `PasteFromClipboard` (이미지·링크·텍스트 자동 분기), 노트 `PropertyChanged` 구독으로 `Content` 변경 시 즉시 DB 저장, NoteBook `PropertyChanged` 구독으로 `SnapEnabled` 변경 시 DB 저장. 다중 선택 헬퍼: `SelectedNotes`/`ClearSelection()`/`SelectOnly(NoteItem)`. `GridSize=10` 상수 + `Snap(double)` 정적 헬퍼 + `MaybeSnap(double)` 인스턴스 메서드(현재 노트북 토글 반영) |
 | ViewModels/OverlayViewModel.cs | `OverlayViewModel` | `QuickNoteText` (변경 시 settings.json에 자동 저장), `Submit()` → MainViewModel.AddTextNote |
 
 ## 컨트롤·창
 
 | 파일 | 설명 |
 |------|------|
-| Controls/DraggableNoteControl | 타이틀바 드래그로 이동(10px 격자 스냅), 우하단 Thumb로 리사이즈(10px 스냅, min 80×40), 타입별 내용 표시(텍스트는 TextBlock↔TextBox 스왑/이미지/Hyperlink), 더블클릭 또는 자동(`IsEditing=true`)으로 텍스트 편집 진입, TextBox는 `UpdateSourceTrigger=PropertyChanged`로 키 입력 즉시 `Content` 갱신, × 삭제 |
-| MainWindow | 전체 레이아웃 (토글 가능 사이드바 + Pan/Zoom 캔버스), 사이드바 ◀/▶ 토글, 사이드바 노트북 항목에 연동 ProcessName 표시, Ctrl+V 붙여넣기 분기(world 좌표 변환), 캔버스 우클릭 → "새 텍스트 노트"(드래그 없을 때만), 휠클릭/우클릭 드래그 → 팬, Ctrl+휠 → 마우스 앵커 줌(0.2x~4.0x), 우하단 인디케이터: 격자 스냅 토글(노트북별) ⊞ + 줌 % + 뷰 초기화, 글로벌 단축키 등록(`OnSourceInitialized` + `ReregisterHotkeys`), 닫기 시 트레이로 숨김 |
+| Controls/DraggableNoteControl | 타이틀바 드래그로 이동(조건부 격자 스냅, 선택된 모든 노트 동기 이동), 우하단 Thumb로 리사이즈(누적 델타 + 조건부 스냅, 선택된 모든 노트 동기 변경, min 80×40), 타입별 내용 표시(텍스트는 TextBlock↔TextBox 스왑/이미지/Hyperlink), 더블클릭 또는 자동(`IsEditing=true`)으로 텍스트 편집 진입, TextBox는 `UpdateSourceTrigger=PropertyChanged`로 키 입력 즉시 `Content` 갱신, `PreviewMouseLeftButtonDown`에서 Shift 토글/단일 선택 처리, `IsSelected`에 따라 외곽 Border 파란 테두리(DataTrigger), × 삭제 |
+| MainWindow | 전체 레이아웃 (토글 가능 사이드바 + Pan/Zoom 캔버스), 사이드바 ◀/▶ 토글, Ctrl+V 붙여넣기 분기(world 좌표 변환), 캔버스 우클릭 → "새 텍스트 노트"(드래그 없을 때만), 휠클릭/우클릭 드래그 → 팬, **빈 캔버스 좌클릭 드래그 → 마키 선택** (인터섹트, world 변환), 단순 좌클릭 또는 Esc → 선택 해제, Ctrl+휠 → 마우스 앵커 줌(0.2x~4.0x), 우하단 인디케이터: 격자 스냅 토글(노트북별) ⊞ + 줌 % + 뷰 초기화, 글로벌 단축키 등록(`OnSourceInitialized` + `ReregisterHotkeys`), 닫기 시 트레이로 숨김 |
 | OverlayWindow | Topmost 반투명 창, 멀티라인 입력 (Shift+Enter 줄바꿈, Enter 제출), Esc 숨기기, 드래그 이동, 우클릭 → 투명도 ±10%/기본값, 클릭 패스스루 토글 |
 | Dialogs/GamePickerDialog | 실행 중 프로세스 목록 표시, 더블클릭 또는 선택 버튼으로 연동 |
 | Dialogs/RenameDialog | 노트북 이름 변경 입력창 |

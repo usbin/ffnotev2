@@ -14,8 +14,10 @@ public partial class DraggableNoteControl : UserControl
 {
     private bool _isDragging;
     private Point _dragStart;
-    private double _startX;
-    private double _startY;
+    // 일괄 드래그를 위해 선택된 모든 노트의 시작 좌표 캡처
+    private List<(NoteItem Item, double StartX, double StartY)> _dragGroup = new();
+    // 일괄 리사이즈를 위해 선택된 모든 노트의 시작 크기 캡처
+    private List<(NoteItem Item, double StartW, double StartH)> _resizeGroup = new();
 
     public DraggableNoteControl()
     {
@@ -43,8 +45,12 @@ public partial class DraggableNoteControl : UserControl
 
         _isDragging = true;
         _dragStart = e.GetPosition(canvas);
-        _startX = Item.X;
-        _startY = Item.Y;
+
+        // 선택된 노트가 있으면 모두 함께 이동, 없거나 이 노트가 선택 안 됐으면 이 노트만
+        var group = App.MainVM.SelectedNotes.ToList();
+        if (!group.Contains(Item)) group = new List<NoteItem> { Item };
+        _dragGroup = group.Select(n => (n, n.X, n.Y)).ToList();
+
         ((UIElement)sender).CaptureMouse();
         e.Handled = true;
     }
@@ -56,8 +62,13 @@ public partial class DraggableNoteControl : UserControl
         if (canvas is null) return;
 
         var pos = e.GetPosition(canvas);
-        Item.X = App.MainVM.MaybeSnap(_startX + (pos.X - _dragStart.X));
-        Item.Y = App.MainVM.MaybeSnap(_startY + (pos.Y - _dragStart.Y));
+        var dx = pos.X - _dragStart.X;
+        var dy = pos.Y - _dragStart.Y;
+        foreach (var (it, sx, sy) in _dragGroup)
+        {
+            it.X = App.MainVM.MaybeSnap(sx + dx);
+            it.Y = App.MainVM.MaybeSnap(sy + dy);
+        }
     }
 
     private void TitleBar_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -65,8 +76,9 @@ public partial class DraggableNoteControl : UserControl
         if (!_isDragging) return;
         _isDragging = false;
         ((UIElement)sender).ReleaseMouseCapture();
-        if (Item is not null)
-            App.MainVM.UpdateNotePosition(Item);
+        foreach (var (it, _, _) in _dragGroup)
+            App.MainVM.UpdateNotePosition(it);
+        _dragGroup.Clear();
     }
 
     private void Delete_Click(object sender, RoutedEventArgs e)
@@ -105,6 +117,23 @@ public partial class DraggableNoteControl : UserControl
         }
     }
 
+    private void UserControl_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (Item is null) return;
+        var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+        if (shift)
+        {
+            // Shift+클릭: 토글, 드래그/편집 차단
+            Item.IsSelected = !Item.IsSelected;
+            e.Handled = true;
+            return;
+        }
+        // 미선택 상태에서 일반 클릭: 다른 선택 모두 해제 후 이 노트만 선택
+        // 이미 선택된 경우는 그대로 두고 그룹 드래그가 진행되도록 함
+        if (!Item.IsSelected)
+            App.MainVM.SelectOnly(Item);
+    }
+
     private void TextEditor_LostFocus(object sender, RoutedEventArgs e)
     {
         TextEditor.Visibility = Visibility.Collapsed;
@@ -124,17 +153,36 @@ public partial class DraggableNoteControl : UserControl
         }
     }
 
-    private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+    private double _resizeAccumDx;
+    private double _resizeAccumDy;
+
+    private void ResizeThumb_DragStarted(object sender, DragStartedEventArgs e)
     {
         if (Item is null) return;
-        Item.Width = Math.Max(80, App.MainVM.MaybeSnap(Item.Width + e.HorizontalChange));
-        Item.Height = Math.Max(40, App.MainVM.MaybeSnap(Item.Height + e.VerticalChange));
+        var group = App.MainVM.SelectedNotes.ToList();
+        if (!group.Contains(Item)) group = new List<NoteItem> { Item };
+        _resizeGroup = group.Select(n => (n, n.Width, n.Height)).ToList();
+        _resizeAccumDx = 0;
+        _resizeAccumDy = 0;
+    }
+
+    private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (_resizeGroup.Count == 0) return;
+        _resizeAccumDx += e.HorizontalChange;
+        _resizeAccumDy += e.VerticalChange;
+        foreach (var (it, sw, sh) in _resizeGroup)
+        {
+            it.Width = Math.Max(80, App.MainVM.MaybeSnap(sw + _resizeAccumDx));
+            it.Height = Math.Max(40, App.MainVM.MaybeSnap(sh + _resizeAccumDy));
+        }
     }
 
     private void ResizeThumb_DragCompleted(object sender, DragCompletedEventArgs e)
     {
-        if (Item is null) return;
-        App.MainVM.UpdateNoteContent(Item);
+        foreach (var (it, _, _) in _resizeGroup)
+            App.MainVM.UpdateNoteContent(it);
+        _resizeGroup.Clear();
     }
 
     private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)

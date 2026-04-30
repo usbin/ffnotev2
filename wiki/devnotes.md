@@ -11,7 +11,6 @@
 ## TODO (다음 작업 후보)
 
 배치/선택 기능 로드맵 (확정 순서):
-- [ ] **D. 다중 선택** — 좌클릭 마키 드래그 + Shift+클릭 토글, 일괄 드래그/리사이즈
 - [ ] **E. 그룹** — 다중 선택 후 Ctrl+G 또는 우클릭 메뉴, 완전 내포 판정, 그룹 드래그 시 내부 동기 이동, DB 모델
 - [ ] **C. 자동 밀집** — 가변 크기 노트 packing (shelf/skyline 검토). 최상위 그룹/그룹 단위 정렬
 - [ ] **B. 일괄 스냅** — 좌상단 floor + 사이즈 ceil + 2D 충돌 해결 (알고리즘 검토 필요)
@@ -46,6 +45,7 @@
 - [x] **새 노트 자동 편집 진입** — `NoteItem.IsEditing` 임시 플래그 + `DraggableNoteControl.UserControl_Loaded`에서 자동 `BeginEdit()`
 - [x] **키 입력 즉시 DB 저장** — `UpdateSourceTrigger=PropertyChanged` + `MainViewModel`이 노트 `PropertyChanged` 구독해 `Content` 변경 시 즉시 저장 (앱 종료 시 손실 방지)
 - [x] **10px 격자 스냅 (노트북별 토글, 기본 OFF)** — `MainViewModel.GridSize=10` + `Snap()`/`MaybeSnap()`. `NoteBook.SnapEnabled` 컬럼 + DB 마이그레이션. 우하단 ⊞ 토글 버튼 (TwoWay 바인딩, 변경 시 즉시 DB 영속화)
+- [x] **다중 선택 + 일괄 드래그/리사이즈** — `NoteItem.IsSelected`(transient). 빈 캔버스 좌클릭 드래그 = 마키(인터섹트, world 변환), Shift+클릭 = 토글, 단순 클릭/Esc = 해제. 선택된 노트 한 개를 드래그하면 모두 동기 이동(같은 Δ). 리사이즈는 `DragStarted`에서 시작 크기 캡처 + 누적 Δ로 모두 같은 px만큼 변경(절대). 선택 시각: 외곽 Border 파란 테두리(#5599FF, 두께 2)
 - [x] **WPF 포커스 사각형 제거** — ItemsControl/ItemContainer/CanvasArea의 `FocusVisualStyle="{x:Null}"`
 
 ## 설계 결정

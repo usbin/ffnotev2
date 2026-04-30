@@ -3,12 +3,25 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:ffnotev2.Converters"
              Width="{Binding Width}" Height="{Binding Height}"
-             Loaded="UserControl_Loaded">
+             Loaded="UserControl_Loaded"
+             PreviewMouseLeftButtonDown="UserControl_PreviewMouseLeftButtonDown">
     <UserControl.Resources>
         <conv:NoteTypeToVisibilityConverter x:Key="TypeVis"/>
         <conv:PathToImageConverter x:Key="PathToImage"/>
     </UserControl.Resources>
-    <Border Background="#FF2C2C2C" BorderBrush="#FF555555" BorderThickness="1" CornerRadius="4">
+    <Border Background="#FF2C2C2C" CornerRadius="4">
+        <Border.Style>
+            <Style TargetType="Border">
+                <Setter Property="BorderBrush" Value="#FF555555"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                        <Setter Property="BorderBrush" Value="#FF5599FF"/>
+                        <Setter Property="BorderThickness" Value="2"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="22"/>
@@ -80,6 +93,7 @@
             <Thumb Grid.Row="1" Width="14" Height="14"
                    HorizontalAlignment="Right" VerticalAlignment="Bottom"
                    Cursor="SizeNWSE"
+                   DragStarted="ResizeThumb_DragStarted"
                    DragDelta="ResizeThumb_DragDelta"
                    DragCompleted="ResizeThumb_DragCompleted">
                 <Thumb.Template>

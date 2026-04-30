@@ -27,6 +27,9 @@ public partial class MainWindow : Window
     private double _panStartTy;
     private bool _panMoved;
 
+    private bool _marqueeActive;
+    private Point _marqueeStart;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -66,6 +69,17 @@ public partial class MainWindow : Window
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape)
+        {
+            // 편집 중인 TextBox에서의 Esc는 편집 종료가 우선 (TextEditor_PreviewKeyDown이 e.Handled 처리)
+            if (e.OriginalSource is not TextBox)
+            {
+                App.MainVM.ClearSelection();
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (e.Key == Key.V && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         {
             // 편집 가능한 텍스트박스 안에서의 Ctrl+V는 기본 붙여넣기 살리기
@@ -100,6 +114,17 @@ public partial class MainWindow : Window
 
     private void CanvasArea_MouseDown(object sender, MouseButtonEventArgs e)
     {
+        // 좌클릭 빈 영역: 마키 선택 시작 (노트 위는 노트의 PreviewMouseLeftButtonDown이 먼저 처리)
+        if (e.ChangedButton == MouseButton.Left && _panButton is null && !_marqueeActive
+            && !IsOriginInsideNote(e.OriginalSource))
+        {
+            _marqueeActive = true;
+            _marqueeStart = e.GetPosition(CanvasArea);
+            CanvasArea.CaptureMouse();
+            e.Handled = true;
+            return;
+        }
+
         if (e.ChangedButton != MouseButton.Middle && e.ChangedButton != MouseButton.Right) return;
         if (_panButton is not null) return;
 
@@ -122,6 +147,20 @@ public partial class MainWindow : Window
 
     private void CanvasArea_MouseMove(object sender, MouseEventArgs e)
     {
+        if (_marqueeActive)
+        {
+            var p = e.GetPosition(CanvasArea);
+            var x = Math.Min(p.X, _marqueeStart.X);
+            var y = Math.Min(p.Y, _marqueeStart.Y);
+            var w = Math.Abs(p.X - _marqueeStart.X);
+            var h = Math.Abs(p.Y - _marqueeStart.Y);
+            MarqueeRect.Margin = new Thickness(x, y, 0, 0);
+            MarqueeRect.Width = w;
+            MarqueeRect.Height = h;
+            MarqueeRect.Visibility = Visibility.Visible;
+            return;
+        }
+
         if (_panButton is null) return;
         var pos = e.GetPosition(CanvasArea);
         var dx = pos.X - _panStart.X;
@@ -140,10 +179,58 @@ public partial class MainWindow : Window
 
     private void CanvasArea_MouseUp(object sender, MouseButtonEventArgs e)
     {
+        if (e.ChangedButton == MouseButton.Left && _marqueeActive)
+        {
+            EndMarquee(e.GetPosition(CanvasArea));
+            e.Handled = true;
+            return;
+        }
+
         // 휠 클릭만 여기서 종료. 우클릭은 MouseRightButtonUp에서 처리
         if (_panButton != MouseButton.Middle || e.ChangedButton != MouseButton.Middle) return;
         EndPan();
         e.Handled = true;
+    }
+
+    private void EndMarquee(Point endPoint)
+    {
+        var dx = endPoint.X - _marqueeStart.X;
+        var dy = endPoint.Y - _marqueeStart.Y;
+        if (Math.Abs(dx) < PanDragThreshold && Math.Abs(dy) < PanDragThreshold)
+        {
+            // 단순 클릭: 선택 해제
+            App.MainVM.ClearSelection();
+        }
+        else if (App.MainVM.CurrentNotebook is { } nb)
+        {
+            // world 좌표로 변환 후 인터섹트되는 노트 모두 선택
+            var (wx1, wy1) = ScreenToWorld(_marqueeStart);
+            var (wx2, wy2) = ScreenToWorld(endPoint);
+            var minX = Math.Min(wx1, wx2);
+            var maxX = Math.Max(wx1, wx2);
+            var minY = Math.Min(wy1, wy2);
+            var maxY = Math.Max(wy1, wy2);
+            foreach (var n in nb.Notes)
+            {
+                var hit = n.X + n.Width >= minX && n.X <= maxX
+                       && n.Y + n.Height >= minY && n.Y <= maxY;
+                n.IsSelected = hit;
+            }
+        }
+        MarqueeRect.Visibility = Visibility.Collapsed;
+        _marqueeActive = false;
+        if (CanvasArea.IsMouseCaptured) CanvasArea.ReleaseMouseCapture();
+    }
+
+    private static bool IsOriginInsideNote(object? originalSource)
+    {
+        DependencyObject? d = originalSource as DependencyObject;
+        while (d is not null)
+        {
+            if (d is Controls.DraggableNoteControl) return true;
+            d = VisualTreeHelper.GetParent(d);
+        }
+        return false;
     }
 
     private void EndPan()
@@ -156,8 +243,13 @@ public partial class MainWindow : Window
 
     private void CanvasArea_LostMouseCapture(object sender, MouseEventArgs e)
     {
-        // 컨텍스트 메뉴 등 다른 요소가 캡처를 가져가면 안전하게 팬 상태 해제
+        // 컨텍스트 메뉴 등 다른 요소가 캡처를 가져가면 안전하게 팬/마키 상태 해제
         if (_panButton is not null) EndPan();
+        if (_marqueeActive)
+        {
+            MarqueeRect.Visibility = Visibility.Collapsed;
+            _marqueeActive = false;
+        }
     }
 
     private void CanvasArea_MouseWheel(object sender, MouseWheelEventArgs e)

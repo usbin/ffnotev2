@@ -34,6 +34,10 @@ public partial class NoteItem : ObservableObject
     [ObservableProperty]
     private bool isEditing;
 
+    // 다중 선택 상태 (DB 미저장 transient)
+    [ObservableProperty]
+    private bool isSelected;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

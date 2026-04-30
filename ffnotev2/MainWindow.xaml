@@ -116,6 +116,14 @@
                        HorizontalAlignment="Center" VerticalAlignment="Center"
                        Visibility="{Binding HasCurrentNotebook, Converter={StaticResource InvBoolToVis}}"/>
 
+            <!-- 마키 선택 사각형 -->
+            <Rectangle x:Name="MarqueeRect"
+                       Stroke="#FF5599FF" StrokeThickness="1"
+                       Fill="#225599FF"
+                       Visibility="Collapsed"
+                       IsHitTestVisible="False"
+                       HorizontalAlignment="Left" VerticalAlignment="Top"/>
+
             <!-- 사이드바 펼치기 핸들 (사이드바 접혔을 때만 노출) -->
             <Button x:Name="SidebarReopenButton"
                     Content="▶" Width="18" Height="44"

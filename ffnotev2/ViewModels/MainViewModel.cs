@@ -22,6 +22,21 @@ public partial class MainViewModel : ObservableObject
     /// <summary>현재 노트북의 SnapEnabled 토글에 따라 조건부로 스냅. 토글 OFF면 원본 값.</summary>
     public double MaybeSnap(double v) => CurrentNotebook?.SnapEnabled == true ? Snap(v) : v;
 
+    public IEnumerable<NoteItem> SelectedNotes =>
+        CurrentNotebook?.Notes.Where(n => n.IsSelected) ?? Enumerable.Empty<NoteItem>();
+
+    public void ClearSelection()
+    {
+        if (CurrentNotebook is null) return;
+        foreach (var n in CurrentNotebook.Notes) n.IsSelected = false;
+    }
+
+    public void SelectOnly(NoteItem note)
+    {
+        if (CurrentNotebook is null) return;
+        foreach (var n in CurrentNotebook.Notes) n.IsSelected = (n == note);
+    }
+
     private readonly DatabaseService _db;
     private readonly GameDetectionService _gameDetection;
 
