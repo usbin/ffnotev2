@@ -50,7 +50,17 @@ public partial class MainWindow : Window
         _hotkey.Initialize(this);
         ReregisterHotkeys();
 
-        // 시작 시 백그라운드로 GitHub Releases 새 버전 확인. 설치되지 않은 개발 빌드에서는 즉시 반환.
+        // 자동 시작(트레이 전용)일 때는 다이얼로그가 갑자기 뜨지 않도록,
+        // 메인 창이 처음 사용자에게 표시되는 시점(IsVisible=true)에 1회만 업데이트 체크.
+        IsVisibleChanged += MainWindow_OnFirstVisible_CheckUpdate;
+    }
+
+    private bool _updateChecked;
+    private void MainWindow_OnFirstVisible_CheckUpdate(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (_updateChecked || !IsVisible) return;
+        _updateChecked = true;
+        IsVisibleChanged -= MainWindow_OnFirstVisible_CheckUpdate;
         _ = new UpdateService().CheckAndPromptAsync(this);
     }
 

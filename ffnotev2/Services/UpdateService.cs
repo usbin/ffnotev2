@@ -37,7 +37,13 @@ public class UpdateService
             if (result != MessageBoxResult.OK) return;
 
             await _mgr.DownloadUpdatesAsync(info).ConfigureAwait(true);
-            _mgr.ApplyUpdatesAndRestart(info); // 앱 즉시 종료 + 새 버전 재시작
+
+            // PublishSingleFile 배포에서 in-process apply는 자기 자신 exe의 file lock 때문에
+            // sq.version 매니페스트만 갱신되고 exe 교체는 실패하는 좀비 상태가 발생함.
+            // Update.exe를 wait-for-pid 모드로 미리 띄우고, 본 WPF 프로세스를 깔끔히 종료해
+            // 부모 PID 사라진 뒤 lock 없이 안전하게 exe 교체 + 재시작이 일어나도록 한다.
+            _mgr.WaitExitThenApplyUpdates(info);
+            Application.Current.Shutdown();
         }
         catch
         {
