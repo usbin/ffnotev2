@@ -154,7 +154,7 @@ public partial class MainViewModel : ObservableObject
         // 4) 애니메이션: 현재 → 목표 (300ms, ease-out cubic)
         var start = notes.ToDictionary(n => n, n => (n.X, n.Y, n.Width, n.Height));
         var sw = Stopwatch.StartNew();
-        var duration = TimeSpan.FromMilliseconds(200);
+        var duration = TimeSpan.FromMilliseconds(100);
         _bulkSnapTimer?.Stop();
         _bulkSnapTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
         _bulkSnapTimer.Tick += (_, _) =>
