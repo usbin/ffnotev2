@@ -68,6 +68,10 @@ public partial class MainWindow : Window
         Hide();
     }
 
+    /// <summary>편집 종료/비텍스트 노트 이동 후 키 이벤트가 Window_PreviewKeyDown까지 도달하도록
+    /// 캔버스 영역(Focusable=True)으로 키보드 포커스를 옮긴다.</summary>
+    public void FocusCanvas() => Keyboard.Focus(CanvasArea);
+
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
@@ -181,10 +185,17 @@ public partial class MainWindow : Window
         App.MainVM.SelectOnly(next);
         if (resumeEdit)
         {
-            // 현재 TextEditor 포커스 해제 → LostFocus가 Content 저장
-            // 다음 노트의 IsEditing=true 트리거 → DraggableNoteControl이 BeginEdit
-            Keyboard.ClearFocus();
-            Dispatcher.BeginInvoke(new Action(() => next.IsEditing = true), DispatcherPriority.Loaded);
+            if (next.Type == Models.NoteType.Text)
+            {
+                // 다음도 텍스트면: 현재 포커스 해제 → LostFocus 저장 → 다음 노트 IsEditing 트리거 → BeginEdit
+                Keyboard.ClearFocus();
+                Dispatcher.BeginInvoke(new Action(() => next.IsEditing = true), DispatcherPriority.Loaded);
+            }
+            else
+            {
+                // 다음이 비텍스트(이미지/링크): 편집 종료, 캔버스에 포커스 → 이후 화살표가 다시 작동
+                FocusCanvas();
+            }
         }
         e.Handled = true;
     }

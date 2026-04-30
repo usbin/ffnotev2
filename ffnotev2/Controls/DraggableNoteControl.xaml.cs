@@ -165,9 +165,9 @@ public partial class DraggableNoteControl : UserControl
     {
         if (e.Key == Key.Escape)
         {
-            // ESC로 편집 종료. 포커스를 부모 Window로 옮겨 LostFocus 트리거 + 이후 화살표가
-            // Window_PreviewKeyDown에 도달하도록 함 (ClearFocus만 하면 어디로도 라우팅 안 됨)
-            if (Window.GetWindow(this) is { } w) Keyboard.Focus(w);
+            // ESC로 편집 종료. CanvasArea(Focusable=True)에 포커스를 옮겨 LostFocus 트리거 +
+            // 이후 화살표가 Window_PreviewKeyDown에 도달하도록 함
+            if (Window.GetWindow(this) is MainWindow mw) mw.FocusCanvas();
             e.Handled = true;
         }
         // Alt+방향키 노트 이동은 Window_PreviewKeyDown에서 통합 처리

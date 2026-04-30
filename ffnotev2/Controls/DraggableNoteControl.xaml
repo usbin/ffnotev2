@@ -70,6 +70,7 @@
                              VerticalScrollBarVisibility="Auto"
                              Background="Transparent"
                              Foreground="#FFEEEEEE"
+                             CaretBrush="#FFEEEEEE"
                              BorderThickness="0"
                              Padding="6"
                              InputMethod.IsInputMethodEnabled="True"
