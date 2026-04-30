@@ -19,6 +19,9 @@ public partial class MainViewModel : ObservableObject
     /// <summary>월드 좌표를 10px 격자에 가장 가까운 값으로 라운딩.</summary>
     public static double Snap(double v) => Math.Round(v / GridSize) * GridSize;
 
+    /// <summary>현재 노트북의 SnapEnabled 토글에 따라 조건부로 스냅. 토글 OFF면 원본 값.</summary>
+    public double MaybeSnap(double v) => CurrentNotebook?.SnapEnabled == true ? Snap(v) : v;
+
     private readonly DatabaseService _db;
     private readonly GameDetectionService _gameDetection;
 
@@ -60,6 +63,15 @@ public partial class MainViewModel : ObservableObject
     {
         foreach (var note in nb.Notes) HookNote(note);
         nb.Notes.CollectionChanged += OnNotesCollectionChanged;
+        nb.PropertyChanged += OnNotebookPropertyChanged;
+    }
+
+    private void OnNotebookPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not NoteBook nb) return;
+        // 격자 스냅 토글은 즉시 DB에 영속화
+        if (e.PropertyName == nameof(NoteBook.SnapEnabled))
+            _db.SetNotebookSnapEnabled(nb.Id, nb.SnapEnabled);
     }
 
     private void OnNotesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -137,8 +149,8 @@ public partial class MainViewModel : ObservableObject
             NotebookId = CurrentNotebook.Id,
             Type = NoteType.Text,
             Content = text,
-            X = Snap(x),
-            Y = Snap(y),
+            X = MaybeSnap(x),
+            Y = MaybeSnap(y),
             Width = 200,
             Height = 100,
             IsEditing = true
@@ -156,8 +168,8 @@ public partial class MainViewModel : ObservableObject
             NotebookId = CurrentNotebook.Id,
             Type = NoteType.Image,
             Content = imagePath,
-            X = Snap(x),
-            Y = Snap(y),
+            X = MaybeSnap(x),
+            Y = MaybeSnap(y),
             Width = 400,
             Height = 300
         };
@@ -174,8 +186,8 @@ public partial class MainViewModel : ObservableObject
             NotebookId = CurrentNotebook.Id,
             Type = NoteType.Link,
             Content = url,
-            X = Snap(x),
-            Y = Snap(y),
+            X = MaybeSnap(x),
+            Y = MaybeSnap(y),
             Width = 300,
             Height = 56
         };

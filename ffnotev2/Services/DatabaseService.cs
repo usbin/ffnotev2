@@ -45,29 +45,52 @@ public class DatabaseService
     private void InitializeSchema()
     {
         using var conn = Open();
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = """
+                CREATE TABLE IF NOT EXISTS Notebooks (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Name TEXT NOT NULL,
+                    ProcessName TEXT,
+                    CreatedAt TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS NoteItems (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    NotebookId INTEGER NOT NULL REFERENCES Notebooks(Id) ON DELETE CASCADE,
+                    Type INTEGER NOT NULL,
+                    Content TEXT NOT NULL,
+                    X REAL NOT NULL,
+                    Y REAL NOT NULL,
+                    Width REAL NOT NULL,
+                    Height REAL NOT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    UpdatedAt TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS IX_NoteItems_NotebookId ON NoteItems(NotebookId);
+                """;
+            cmd.ExecuteNonQuery();
+        }
+
+        // 마이그레이션: Notebooks.SnapEnabled (기존 DB에 컬럼 없으면 추가)
+        if (!ColumnExists(conn, "Notebooks", "SnapEnabled"))
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "ALTER TABLE Notebooks ADD COLUMN SnapEnabled INTEGER NOT NULL DEFAULT 0";
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    private static bool ColumnExists(SqliteConnection conn, string table, string column)
+    {
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            CREATE TABLE IF NOT EXISTS Notebooks (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Name TEXT NOT NULL,
-                ProcessName TEXT,
-                CreatedAt TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS NoteItems (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                NotebookId INTEGER NOT NULL REFERENCES Notebooks(Id) ON DELETE CASCADE,
-                Type INTEGER NOT NULL,
-                Content TEXT NOT NULL,
-                X REAL NOT NULL,
-                Y REAL NOT NULL,
-                Width REAL NOT NULL,
-                Height REAL NOT NULL,
-                CreatedAt TEXT NOT NULL,
-                UpdatedAt TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS IX_NoteItems_NotebookId ON NoteItems(NotebookId);
-            """;
-        cmd.ExecuteNonQuery();
+        cmd.CommandText = $"PRAGMA table_info({table})";
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public List<NoteBook> GetNotebooks()
@@ -77,7 +100,7 @@ public class DatabaseService
 
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT Id, Name, ProcessName, CreatedAt FROM Notebooks ORDER BY Id";
+            cmd.CommandText = "SELECT Id, Name, ProcessName, CreatedAt, SnapEnabled FROM Notebooks ORDER BY Id";
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
@@ -86,7 +109,8 @@ public class DatabaseService
                     Id = reader.GetInt32(0),
                     Name = reader.GetString(1),
                     ProcessName = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    CreatedAt = DateTime.Parse(reader.GetString(3))
+                    CreatedAt = DateTime.Parse(reader.GetString(3)),
+                    SnapEnabled = reader.GetInt32(4) != 0
                 });
             }
         }
@@ -152,6 +176,16 @@ public class DatabaseService
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "UPDATE Notebooks SET ProcessName = $proc WHERE Id = $id";
         cmd.Parameters.AddWithValue("$proc", (object?)processName ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void SetNotebookSnapEnabled(int id, bool enabled)
+    {
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE Notebooks SET SnapEnabled = $v WHERE Id = $id";
+        cmd.Parameters.AddWithValue("$v", enabled ? 1 : 0);
         cmd.Parameters.AddWithValue("$id", id);
         cmd.ExecuteNonQuery();
     }

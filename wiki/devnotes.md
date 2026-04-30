@@ -10,6 +10,13 @@
 
 ## TODO (다음 작업 후보)
 
+배치/선택 기능 로드맵 (확정 순서):
+- [ ] **D. 다중 선택** — 좌클릭 마키 드래그 + Shift+클릭 토글, 일괄 드래그/리사이즈
+- [ ] **E. 그룹** — 다중 선택 후 Ctrl+G 또는 우클릭 메뉴, 완전 내포 판정, 그룹 드래그 시 내부 동기 이동, DB 모델
+- [ ] **C. 자동 밀집** — 가변 크기 노트 packing (shelf/skyline 검토). 최상위 그룹/그룹 단위 정렬
+- [ ] **B. 일괄 스냅** — 좌상단 floor + 사이즈 ceil + 2D 충돌 해결 (알고리즘 검토 필요)
+
+기타:
 - [ ] 캔버스 뷰 상태(pan/zoom) 노트북별 DB 저장/복원
 - [ ] 노트 색상 변경 기능
 - [ ] 노트북 드래그 정렬 (사이드바)
@@ -38,7 +45,7 @@
 - [x] **사이드바 접기/펼치기 토글** (◀/▶ 버튼)
 - [x] **새 노트 자동 편집 진입** — `NoteItem.IsEditing` 임시 플래그 + `DraggableNoteControl.UserControl_Loaded`에서 자동 `BeginEdit()`
 - [x] **키 입력 즉시 DB 저장** — `UpdateSourceTrigger=PropertyChanged` + `MainViewModel`이 노트 `PropertyChanged` 구독해 `Content` 변경 시 즉시 저장 (앱 종료 시 손실 방지)
-- [x] **10px 격자 스냅** — `MainViewModel.GridSize=10` + `Snap()` 정적 헬퍼. 드래그·리사이즈·새 노트 생성 좌표에 적용
+- [x] **10px 격자 스냅 (노트북별 토글, 기본 OFF)** — `MainViewModel.GridSize=10` + `Snap()`/`MaybeSnap()`. `NoteBook.SnapEnabled` 컬럼 + DB 마이그레이션. 우하단 ⊞ 토글 버튼 (TwoWay 바인딩, 변경 시 즉시 DB 영속화)
 - [x] **WPF 포커스 사각형 제거** — ItemsControl/ItemContainer/CanvasArea의 `FocusVisualStyle="{x:Null}"`
 
 ## 설계 결정

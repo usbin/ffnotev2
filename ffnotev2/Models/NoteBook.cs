@@ -13,6 +13,10 @@ public partial class NoteBook : ObservableObject
     [ObservableProperty]
     private string? processName;
 
+    // 노트북별 격자 스냅 토글 (DB 영속, 기본 false)
+    [ObservableProperty]
+    private bool snapEnabled;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ObservableCollection<NoteItem> Notes { get; } = new();

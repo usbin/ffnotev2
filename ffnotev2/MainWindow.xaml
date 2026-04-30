@@ -132,7 +132,16 @@
                     Background="#AA222222" CornerRadius="3"
                     Visibility="{Binding HasCurrentNotebook, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock x:Name="ZoomLabel" Text="100%" Foreground="#FFCCCCCC" FontSize="11"/>
+                    <ToggleButton IsChecked="{Binding CurrentNotebook.SnapEnabled, Mode=TwoWay}"
+                                  Width="22" Height="20" Margin="0,0,8,0"
+                                  Background="Transparent" BorderThickness="0" Foreground="#FFCCCCCC"
+                                  ToolTip="격자에 맞추기 (10px) — 노트북별 설정">
+                        <ToggleButton.Content>
+                            <TextBlock Text="⊞" FontSize="13"/>
+                        </ToggleButton.Content>
+                    </ToggleButton>
+                    <TextBlock x:Name="ZoomLabel" Text="100%" Foreground="#FFCCCCCC" FontSize="11"
+                               VerticalAlignment="Center"/>
                     <Button Content="⟳" Margin="8,0,0,0" Width="20" Height="20"
                             Background="Transparent" BorderThickness="0" Foreground="#FFCCCCCC"
                             ToolTip="뷰 초기화"

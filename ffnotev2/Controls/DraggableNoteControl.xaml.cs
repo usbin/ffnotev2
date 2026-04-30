@@ -56,8 +56,8 @@ public partial class DraggableNoteControl : UserControl
         if (canvas is null) return;
 
         var pos = e.GetPosition(canvas);
-        Item.X = ViewModels.MainViewModel.Snap(_startX + (pos.X - _dragStart.X));
-        Item.Y = ViewModels.MainViewModel.Snap(_startY + (pos.Y - _dragStart.Y));
+        Item.X = App.MainVM.MaybeSnap(_startX + (pos.X - _dragStart.X));
+        Item.Y = App.MainVM.MaybeSnap(_startY + (pos.Y - _dragStart.Y));
     }
 
     private void TitleBar_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -127,8 +127,8 @@ public partial class DraggableNoteControl : UserControl
     private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
     {
         if (Item is null) return;
-        Item.Width = Math.Max(80, ViewModels.MainViewModel.Snap(Item.Width + e.HorizontalChange));
-        Item.Height = Math.Max(40, ViewModels.MainViewModel.Snap(Item.Height + e.VerticalChange));
+        Item.Width = Math.Max(80, App.MainVM.MaybeSnap(Item.Width + e.HorizontalChange));
+        Item.Height = Math.Max(40, App.MainVM.MaybeSnap(Item.Height + e.VerticalChange));
     }
 
     private void ResizeThumb_DragCompleted(object sender, DragCompletedEventArgs e)
