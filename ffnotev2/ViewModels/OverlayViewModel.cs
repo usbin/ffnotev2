@@ -11,7 +11,6 @@ public partial class OverlayViewModel : ObservableObject
     private static readonly Random Rng = new();
 
     private readonly MainViewModel _main;
-    private readonly SettingsService _settings;
     private NoteBook? _watchedNotebook;
     private bool _suppressDraftSave;
 
@@ -26,23 +25,20 @@ public partial class OverlayViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(main);
         ArgumentNullException.ThrowIfNull(settings);
         _main = main;
-        _settings = settings;
-
-        // 초기 로드 중에는 저장 트리거 막기 (디스크 → 메모리 단방향)
-        _suppressDraftSave = true;
-        QuickNoteText = _settings.Settings.OverlayDraft ?? string.Empty;
-        _suppressDraftSave = false;
+        // SettingsService는 더 이상 초안 저장에 사용하지 않음 (노트북별 DB 컬럼으로 이동)
 
         AttachToCurrentNotebook();
         UpdateNotebookName();
+        LoadDraftFromCurrentNotebook();
         _main.PropertyChanged += OnMainChanged;
     }
 
     partial void OnQuickNoteTextChanged(string value)
     {
         if (_suppressDraftSave) return;
-        _settings.Settings.OverlayDraft = value ?? string.Empty;
-        _settings.Save();
+        // 현재 노트북의 OverlayDraft에 반영 — MainViewModel이 PropertyChanged 구독해 DB에 저장
+        if (_main.CurrentNotebook is { } nb)
+            nb.OverlayDraft = value ?? string.Empty;
     }
 
     private void OnMainChanged(object? sender, PropertyChangedEventArgs e)
@@ -51,6 +47,7 @@ public partial class OverlayViewModel : ObservableObject
         {
             AttachToCurrentNotebook();
             UpdateNotebookName();
+            LoadDraftFromCurrentNotebook();
         }
     }
 
@@ -72,6 +69,14 @@ public partial class OverlayViewModel : ObservableObject
     private void UpdateNotebookName()
         => CurrentNotebookName = _main.CurrentNotebook?.Name ?? "(노트북 없음)";
 
+    /// <summary>현재 노트북의 OverlayDraft를 QuickNoteText에 단방향 로드. 저장 트리거 억제.</summary>
+    private void LoadDraftFromCurrentNotebook()
+    {
+        _suppressDraftSave = true;
+        QuickNoteText = _main.CurrentNotebook?.OverlayDraft ?? string.Empty;
+        _suppressDraftSave = false;
+    }
+
     [RelayCommand]
     private void Submit()
     {
@@ -81,6 +86,6 @@ public partial class OverlayViewModel : ObservableObject
         var x = 60 + Rng.NextDouble() * 320;
         var y = 60 + Rng.NextDouble() * 200;
         _main.AddTextNote(text, x, y);
-        QuickNoteText = string.Empty;  // 초안 비우기 → settings에도 빈 문자열 저장됨
+        QuickNoteText = string.Empty;  // 초안 비우기 → 현재 노트북의 OverlayDraft도 빈 문자열로 저장됨
     }
 }

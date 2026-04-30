@@ -17,6 +17,10 @@ public partial class NoteBook : ObservableObject
     [ObservableProperty]
     private bool snapEnabled;
 
+    // 노트북별 오버레이 초안 (DB 영속, 키 입력마다 저장)
+    [ObservableProperty]
+    private string overlayDraft = string.Empty;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ObservableCollection<NoteItem> Notes { get; } = new();

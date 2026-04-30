@@ -269,6 +269,9 @@ public partial class MainViewModel : ObservableObject
         // 격자 스냅 토글은 즉시 DB에 영속화
         if (e.PropertyName == nameof(NoteBook.SnapEnabled))
             _db.SetNotebookSnapEnabled(nb.Id, nb.SnapEnabled);
+        // 오버레이 초안: 키 입력마다 저장 (SQLite UPDATE 미만 ms)
+        else if (e.PropertyName == nameof(NoteBook.OverlayDraft))
+            _db.SetNotebookOverlayDraft(nb.Id, nb.OverlayDraft);
     }
 
     private void OnNotesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)

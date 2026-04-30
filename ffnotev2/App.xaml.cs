@@ -12,6 +12,13 @@ namespace ffnotev2;
 
 public partial class App : Application
 {
+    // 사용자 단위로 식별되는 단일 인스턴스 가드용 이름. 한 사용자 환경에서 한 프로세스만 허용.
+    private const string SingletonMutexName = "Local\\ffnotev2-singleton-{8B5C7E2F-3A4D-4E1F-9B6A-1C2D3E4F5A6B}";
+    private const string SingletonShowEventName = "Local\\ffnotev2-show-{8B5C7E2F-3A4D-4E1F-9B6A-1C2D3E4F5A6B}";
+
+    private static Mutex? _singletonMutex;
+    private EventWaitHandle? _showEvent;
+
     public static MainViewModel MainVM { get; private set; } = null!;
     public static OverlayViewModel OverlayVM { get; private set; } = null!;
 
@@ -28,6 +35,39 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // 단일 인스턴스 가드: 다른 인스턴스 실행 중이면 그쪽에 ShowMain 신호 보내고 즉시 종료
+        _singletonMutex = new Mutex(initiallyOwned: true, SingletonMutexName, out var isFirst);
+        if (!isFirst)
+        {
+            try
+            {
+                if (EventWaitHandle.TryOpenExisting(SingletonShowEventName, out var ev))
+                {
+                    ev.Set();
+                    ev.Dispose();
+                }
+            }
+            catch { /* 신호 실패해도 종료는 진행 */ }
+            Shutdown(0);
+            return;
+        }
+
+        // 첫 인스턴스: 신호용 EventWaitHandle 생성 + 백그라운드 대기 스레드 (IsBackground=true → 프로세스 종료 시 자연 소멸)
+        _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, SingletonShowEventName);
+        var watcher = new Thread(() =>
+        {
+            while (true)
+            {
+                try
+                {
+                    _showEvent.WaitOne();
+                    Dispatcher.Invoke(() => ShowMain());
+                }
+                catch { return; }
+            }
+        }) { IsBackground = true, Name = "ffnotev2-singleton-watcher" };
+        watcher.Start();
 
         try
         {
@@ -199,6 +239,9 @@ public partial class App : Application
             _tray.Dispose();
         }
         GameDetectionService?.Dispose();
+        _showEvent?.Dispose();
+        try { _singletonMutex?.ReleaseMutex(); } catch { }
+        _singletonMutex?.Dispose();
         base.OnExit(e);
     }
 }

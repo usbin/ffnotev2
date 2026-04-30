@@ -226,18 +226,25 @@ GameDetectionService (System.Threading.Timer 3초)
         _overlayWindow.Show()  (숨겨져있으면)
 ```
 
-## 오버레이 빠른 입력 (멀티라인 + 초안 자동 저장)
+## 오버레이 빠른 입력 (멀티라인 + 노트북별 초안 자동 저장)
 
 ```
 사용자 텍스트 입력
   → TextBox.Text {Binding QuickNoteText TwoWay PropertyChanged}
-  → OverlayViewModel.OnQuickNoteTextChanged (CommunityToolkit.Mvvm partial method)
-  → SettingsService.Settings.OverlayDraft = value, SettingsService.Save() (settings.json)
+  → OverlayViewModel.OnQuickNoteTextChanged
+  → CurrentNotebook.OverlayDraft = value
+  → MainViewModel.OnNotebookPropertyChanged → _db.SetNotebookOverlayDraft (DB UPDATE 1행)
+
+노트북 전환 (사이드바 클릭 또는 게임 자동 감지)
+  → MainViewModel.CurrentNotebook 변경
+  → OverlayViewModel.OnMainChanged → AttachToCurrentNotebook + LoadDraftFromCurrentNotebook
+  → _suppressDraftSave=true → QuickNoteText = 새 노트북의 OverlayDraft → 억제 해제
+  (저장 트리거 없이 단방향 로드만)
 
 Enter 키
   → OverlayViewModel.SubmitCommand
   → MainViewModel.AddTextNote (60±320, 60±200 랜덤 위치)
-  → QuickNoteText = "" → 초안도 비워 저장
+  → QuickNoteText = "" → 현재 노트북의 OverlayDraft도 빈 문자열로 저장됨
 
 Shift+Enter
   → TextBox 기본 동작으로 줄바꿈만 삽입

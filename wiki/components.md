@@ -6,16 +6,16 @@
 | 파일 | 클래스 | 설명 |
 |------|--------|------|
 | Models/NoteItem.cs | `NoteItem` | X/Y/Width/Height + Type(Text\|Image\|Link) + Content + `IsEditing`(transient — 새 노트 자동 편집 진입) + `IsSelected`(transient — 다중 선택). `ObservableObject` 상속으로 X/Y/Width/Height 변경 시 Canvas 자동 이동/리사이즈, `Content` 변경은 `MainViewModel`이 구독해 즉시 DB 저장 |
-| Models/NoteBook.cs | `NoteBook` | Name, ProcessName, Notes/Groups 컬렉션, `SnapEnabled`(노트북별 격자 스냅 토글, DB 영속, 기본 false). `ObservableProperty Name/ProcessName/SnapEnabled` |
+| Models/NoteBook.cs | `NoteBook` | Name, ProcessName, Notes/Groups 컬렉션, `SnapEnabled`(격자 스냅 토글, DB 영속), `OverlayDraft`(오버레이 초안, DB 영속, 키 입력마다 저장). `ObservableProperty Name/ProcessName/SnapEnabled/OverlayDraft` |
 | Models/NoteGroup.cs | `NoteGroup` | 단순 사각형(X/Y/Width/Height) + `IsSelected`(transient). 멤버십은 동적 — bbox 완전 내포로 판정. 드래그 시작 시점 스냅샷으로 멤버 동기 이동 |
-| Models/AppSettings.cs | `AppSettings` | `ShowMain`, `ToggleOverlay`, `ToggleClickThrough` (HotkeyBinding) + `OverlayOpacity` + `OverlayDraft` + `AutoStartOnLogin` + `OverlayLeft`/`OverlayTop` |
+| Models/AppSettings.cs | `AppSettings` | `ShowMain`, `ToggleOverlay`, `ToggleClickThrough` (HotkeyBinding) + `OverlayOpacity` + `AutoStartOnLogin` + `OverlayLeft`/`OverlayTop`. (오버레이 초안은 노트북별로 분리되어 `NoteBook.OverlayDraft`로 이동) |
 | Models/HotkeyBinding.cs | `HotkeyBinding` | Modifiers + VirtualKey + `DisplayString` ("Ctrl+Alt+Z") |
 
 ## 서비스
 
 | 파일 | 클래스 | 핵심 메서드 |
 |------|--------|-------------|
-| Services/DatabaseService.cs | `DatabaseService` | `LoadAllNotebooks()`, `SaveNoteItem()`, `UpdateNotePosition()`, `DeleteNoteItem()`, `SetNotebookSnapEnabled()`, `AddGroup()`/`UpdateGroup()`/`DeleteGroup()`. `InitializeSchema()`에 `NoteGroups` 테이블 + `Notebooks.SnapEnabled` 컬럼 ALTER 마이그레이션 + `ColumnExists` 헬퍼 |
+| Services/DatabaseService.cs | `DatabaseService` | `LoadAllNotebooks()`, `SaveNoteItem()`, `UpdateNotePosition()`, `DeleteNoteItem()`, `SetNotebookSnapEnabled()`, `SetNotebookOverlayDraft()`, `AddGroup()`/`UpdateGroup()`/`DeleteGroup()`. `InitializeSchema()`에 `NoteGroups` 테이블 + `Notebooks.SnapEnabled`/`OverlayDraft` 컬럼 ALTER 마이그레이션 + `ColumnExists` 헬퍼 |
 | Services/GameDetectionService.cs | `GameDetectionService` | `Start()` — 3초 폴링; `GetRunningWindowedProcesses()` — 창 있는 프로세스 목록 반환 |
 | Services/HotkeyService.cs | `HotkeyService` | `Initialize(Window)`, `Register(modifiers, vk, callback)`, `UnregisterAll()` — Win32 RegisterHotKey 래퍼 (LibraryImport source-generated P/Invoke) |
 | Services/SettingsService.cs | `SettingsService` | `%APPDATA%\ffnotev2\settings.json` 로드/저장. `AppSettings` 노출 (HotkeyBinding 3개) |
@@ -26,7 +26,7 @@
 | 파일 | 클래스 | 역할 |
 |------|--------|------|
 | ViewModels/MainViewModel.cs | `MainViewModel` | Notebooks 관리, `AddTextNote/AddImageNote/AddLinkNote`(생성 좌표 조건부 스냅), `DeleteNote`, `UpdateNotePosition`, `UpdateNoteContent`, `PasteFromClipboard` (이미지·링크·텍스트 자동 분기), 노트 `PropertyChanged` 구독으로 `Content` 변경 시 즉시 DB 저장, NoteBook `PropertyChanged` 구독으로 `SnapEnabled` 변경 시 DB 저장. 다중 선택 헬퍼: `SelectedNotes`/`SelectedGroups`/`ClearSelection()`/`SelectOnly(NoteItem)`/`SelectOnlyGroup(NoteGroup)`. 그룹 관리: `CreateGroupFromSelectedNotes(padding)`/`DeleteGroup`/`UpdateGroupPosition`/`GetMembersOf(group)`(완전 내포 노트·그룹 반환). `BulkSnap()` — 전체 노트 좌상단 floor + 사이즈 ceil + 우/하 충돌 해결. 방향 이동: `FindNeighborNote`. `GridSize=10` 상수 + `Snap(double)` 정적 헬퍼 + `MaybeSnap(double)` 인스턴스 메서드 |
-| ViewModels/OverlayViewModel.cs | `OverlayViewModel` | `QuickNoteText` (변경 시 settings.json에 자동 저장), `Submit()` → MainViewModel.AddTextNote |
+| ViewModels/OverlayViewModel.cs | `OverlayViewModel` | `QuickNoteText`(현재 노트북의 `OverlayDraft`에 양방향 연결 — MainVM이 PropertyChanged 구독해 DB에 키 입력마다 저장), 노트북 전환 시 새 노트북의 초안을 단방향 로드(저장 트리거 억제), `Submit()` → MainViewModel.AddTextNote 후 초안 비움 |
 
 ## 컨트롤·창
 

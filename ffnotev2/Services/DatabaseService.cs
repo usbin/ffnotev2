@@ -87,6 +87,14 @@ public class DatabaseService
             cmd.CommandText = "ALTER TABLE Notebooks ADD COLUMN SnapEnabled INTEGER NOT NULL DEFAULT 0";
             cmd.ExecuteNonQuery();
         }
+
+        // 마이그레이션: Notebooks.OverlayDraft (노트북별 오버레이 초안 저장)
+        if (!ColumnExists(conn, "Notebooks", "OverlayDraft"))
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "ALTER TABLE Notebooks ADD COLUMN OverlayDraft TEXT NOT NULL DEFAULT ''";
+            cmd.ExecuteNonQuery();
+        }
     }
 
     private static bool ColumnExists(SqliteConnection conn, string table, string column)
@@ -109,7 +117,7 @@ public class DatabaseService
 
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT Id, Name, ProcessName, CreatedAt, SnapEnabled FROM Notebooks ORDER BY Id";
+            cmd.CommandText = "SELECT Id, Name, ProcessName, CreatedAt, SnapEnabled, OverlayDraft FROM Notebooks ORDER BY Id";
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
@@ -119,7 +127,8 @@ public class DatabaseService
                     Name = reader.GetString(1),
                     ProcessName = reader.IsDBNull(2) ? null : reader.GetString(2),
                     CreatedAt = DateTime.Parse(reader.GetString(3)),
-                    SnapEnabled = reader.GetInt32(4) != 0
+                    SnapEnabled = reader.GetInt32(4) != 0,
+                    OverlayDraft = reader.IsDBNull(5) ? string.Empty : reader.GetString(5)
                 });
             }
         }
@@ -255,6 +264,16 @@ public class DatabaseService
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "UPDATE Notebooks SET SnapEnabled = $v WHERE Id = $id";
         cmd.Parameters.AddWithValue("$v", enabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void SetNotebookOverlayDraft(int id, string draft)
+    {
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE Notebooks SET OverlayDraft = $v WHERE Id = $id";
+        cmd.Parameters.AddWithValue("$v", draft ?? string.Empty);
         cmd.Parameters.AddWithValue("$id", id);
         cmd.ExecuteNonQuery();
     }

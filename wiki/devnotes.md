@@ -52,6 +52,8 @@
    - 사이드바 ListBox 포커스 시 가로채지 않음
    - DraggableNoteControl `OnItemPropertyChanged`: IsEditing=true가 외부에서 설정되면 항상 false로 리셋(stuck 방지) + 텍스트일 때만 BeginEdit
 - [x] **Enter로 선택 노트 편집 진입** — 비편집 상태에서 단일 선택 텍스트 노트가 있을 때 Enter → IsEditing=true 트리거
+- [x] **단일 인스턴스 (Mutex)** — Local 네임스페이스 Mutex로 한 사용자당 한 프로세스만. 두 번째 인스턴스는 EventWaitHandle 신호로 첫 인스턴스의 ShowMain만 호출하고 즉시 종료. 첫 인스턴스는 IsBackground 스레드에서 신호 대기
+- [x] **노트북별 오버레이 초안** — `Notebooks.OverlayDraft TEXT NOT NULL DEFAULT ''` 컬럼 + `NoteBook.OverlayDraft` ObservableProperty. MainVM의 NoteBook PropertyChanged 구독이 키 입력마다 DB 저장. OverlayViewModel은 노트북 전환 시 `_suppressDraftSave` 플래그로 단방향 로드. 기존 `AppSettings.OverlayDraft`는 제거
 - [x] **그룹 (NoteGroup)** — DB 테이블 `NoteGroups`(Id/NotebookId/X/Y/W/H). 멤버십은 동적(bbox 완전 내포). 그룹 점선 사각형 시각, Stroke만 hit-test 되어 내부 노트 클릭/마키 통과. 드래그 시작 시 `GetMembersOf`로 멤버 스냅샷, 그룹+멤버 모두 같은 Δ로 이동. Ctrl+G로 선택 노트 bbox+10px 패딩으로 그룹 생성, Ctrl+Shift+G/우클릭 메뉴로 해제. 노트와 그룹이 RenderTransform을 공유하도록 `Grid CanvasContent`로 묶음 — 그룹은 노트 뒤, 마키는 노트와 그룹 모두 인터섹트로 선택. 스냅 토글에 따라 그룹 드래그도 격자 정렬
 - [x] **일괄 스냅 (B, 애니메이션)** — `MainViewModel.BulkSnap()`. 전체 노트 좌상단 floor + 사이즈 ceil. (Y,X) 오름차순 정렬 후 충돌 시 dx/dy 최소 거리 계산해 짧은 방향 우선 시프트 (단순 우측 wrap 방식보다 노트가 멀리 사라지지 않음). DispatcherTimer 16ms × 100ms 선형 보간으로 이동/리사이즈 애니메이션, 완료 후 DB 저장. 우하단 ⊟ 버튼으로 발동
 - [x] **WPF 포커스 사각형 제거** — ItemsControl/ItemContainer/CanvasArea의 `FocusVisualStyle="{x:Null}"`
