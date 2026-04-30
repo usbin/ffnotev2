@@ -73,17 +73,26 @@ public partial class GroupBoxControl : UserControl
         var pos = e.GetPosition(canvas);
         var dx = pos.X - _dragStart.X;
         var dy = pos.Y - _dragStart.Y;
-        // 그룹 자체는 스냅 적용 X (그룹 bbox는 자유). 단 멤버는 스냅 적용
-        // 그러나 일관성을 위해 그룹도 MaybeSnap. 노트북 토글 ON일 때만 격자 정렬.
+
+        // 격자 스냅 ON에서 그룹과 멤버를 독립 스냅하면 시작 위치가 비정렬일 때 각자
+        // 다른 격자로 라운딩돼 상대 거리가 한 칸씩 어긋남(멤버가 한 칸씩 튀는 버그).
+        // 그룹 자체를 leader로 잡아 snap된 실제 delta를 산출하고, 같은 delta를 그룹·멤버
+        // 전체에 적용해 상대 위치를 보존.
+        var leader = _groupSnapshot[0]; // 자기 자신
+        var newLeaderX = App.MainVM.MaybeSnap(leader.StartX + dx);
+        var newLeaderY = App.MainVM.MaybeSnap(leader.StartY + dy);
+        var actualDx = newLeaderX - leader.StartX;
+        var actualDy = newLeaderY - leader.StartY;
+
         foreach (var (g, sx, sy) in _groupSnapshot)
         {
-            g.X = App.MainVM.MaybeSnap(sx + dx);
-            g.Y = App.MainVM.MaybeSnap(sy + dy);
+            g.X = sx + actualDx;
+            g.Y = sy + actualDy;
         }
         foreach (var (n, sx, sy) in _noteSnapshot)
         {
-            n.X = App.MainVM.MaybeSnap(sx + dx);
-            n.Y = App.MainVM.MaybeSnap(sy + dy);
+            n.X = sx + actualDx;
+            n.Y = sy + actualDy;
         }
     }
 

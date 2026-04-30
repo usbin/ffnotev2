@@ -99,10 +99,21 @@ public partial class DraggableNoteControl : UserControl
         var pos = e.GetPosition(canvas);
         var dx = pos.X - _dragStart.X;
         var dy = pos.Y - _dragStart.Y;
+
+        // 다중 선택 + 격자 스냅 ON에서 각 노트를 독립 스냅하면 시작 위치가 비정렬일 때
+        // 노트마다 다른 격자로 라운딩돼 상대 거리가 한 칸씩 어긋남. 클릭한 노트(Item)를
+        // leader로 잡아 snap된 실제 delta를 산출하고, 같은 delta를 그룹 전체에 적용.
+        var leader = _dragGroup.FirstOrDefault(g => ReferenceEquals(g.Item, Item));
+        if (leader.Item is null) leader = _dragGroup[0];
+        var newLeaderX = App.MainVM.MaybeSnap(leader.StartX + dx);
+        var newLeaderY = App.MainVM.MaybeSnap(leader.StartY + dy);
+        var actualDx = newLeaderX - leader.StartX;
+        var actualDy = newLeaderY - leader.StartY;
+
         foreach (var (it, sx, sy) in _dragGroup)
         {
-            it.X = App.MainVM.MaybeSnap(sx + dx);
-            it.Y = App.MainVM.MaybeSnap(sy + dy);
+            it.X = sx + actualDx;
+            it.Y = sy + actualDy;
         }
     }
 

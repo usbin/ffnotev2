@@ -42,8 +42,11 @@
 
             <!-- 콘텐츠 영역. 노트가 선택된 상태(IsSelected=true)면 본문 어디서든 드래그 가능.
                  더블클릭(편집 진입), 편집 중 캐럿 이동, 하이퍼링크 클릭은 그대로 동작 — Body* 핸들러가
-                 첫 클릭(미선택→선택 전환)·이중 클릭·편집 중 케이스를 통과시킴 -->
+                 첫 클릭(미선택→선택 전환)·이중 클릭·편집 중 케이스를 통과시킴.
+                 Background=Transparent 필수 — 텍스트 글자 사이 여백이나 짧은 텍스트 아래 공간 같은
+                 비어있는 영역도 hit-test되도록 (없으면 자식 hit-test 실패 → MouseDown 자체가 안 발화) -->
             <Grid Grid.Row="1"
+                  Background="Transparent"
                   MouseLeftButtonDown="BodyDrag_MouseLeftButtonDown"
                   MouseMove="BodyDrag_MouseMove"
                   MouseLeftButtonUp="BodyDrag_MouseLeftButtonUp">
