@@ -8,8 +8,8 @@
 | Models/NoteItem.cs | `NoteItem` | X/Y/Width/Height + Type(Text\|Image\|Link) + Content + `IsEditing`(transient — 새 노트 자동 편집 진입) + `IsSelected`(transient — 다중 선택). `ObservableObject` 상속으로 X/Y/Width/Height 변경 시 Canvas 자동 이동/리사이즈, `Content` 변경은 `MainViewModel`이 구독해 즉시 DB 저장 |
 | Models/NoteBook.cs | `NoteBook` | Name, ProcessName, Notes/Groups 컬렉션, `SnapEnabled`(격자 스냅 토글, DB 영속), `OverlayDraft`(오버레이 초안, DB 영속, 키 입력마다 저장). `ObservableProperty Name/ProcessName/SnapEnabled/OverlayDraft` |
 | Models/NoteGroup.cs | `NoteGroup` | 단순 사각형(X/Y/Width/Height) + `IsSelected`(transient). 멤버십은 동적 — bbox 완전 내포로 판정. 드래그 시작 시점 스냅샷으로 멤버 동기 이동 |
-| Models/AppSettings.cs | `AppSettings` | `ShowMain`, `ToggleOverlay`, `ToggleClickThrough` (HotkeyBinding) + `OverlayOpacity` + `AutoStartOnLogin` + `OverlayLeft`/`OverlayTop`. (오버레이 초안은 노트북별로 분리되어 `NoteBook.OverlayDraft`로 이동) |
-| Models/HotkeyBinding.cs | `HotkeyBinding` | Modifiers + VirtualKey + `DisplayString` ("Ctrl+Alt+Z") |
+| Models/AppSettings.cs | `AppSettings` | `ShowMain`, `ToggleOverlay`, `ToggleClickThrough`(글로벌), `NotebookSwitches[10]`(노트북 1~10 전환, 기본 Ctrl+1~Ctrl+0) + `OverlayOpacity` + `AutoStartOnLogin` + `OverlayLeft`/`OverlayTop`. (오버레이 초안은 노트북별로 분리되어 `NoteBook.OverlayDraft`로 이동) |
+| Models/HotkeyBinding.cs | `HotkeyBinding` | Modifiers + VirtualKey + `DisplayString` ("Ctrl+Alt+Z") + `MatchesLocal(KeyEventArgs)` (NoRepeat 무시한 로컬 키 매칭) |
 
 ## 서비스
 
@@ -38,7 +38,7 @@
 | OverlayWindow | Topmost 반투명 창, 멀티라인 입력 (Shift+Enter 줄바꿈, Enter 제출), Esc 숨기기, 드래그 이동, 우클릭 → 투명도 ±10%/기본값, 클릭 패스스루 토글 |
 | Dialogs/GamePickerDialog | 실행 중 프로세스 목록 표시, 더블클릭 또는 선택 버튼으로 연동 |
 | Dialogs/RenameDialog | 노트북 이름 변경 입력창 |
-| Dialogs/HotkeySettingsDialog | 글로벌 단축키 3개 캡처/저장 |
+| Dialogs/HotkeySettingsDialog | 글로벌 단축키 3개 + 노트북 전환 10개 캡처/저장. ItemsControl로 노트북 슬롯 동적 렌더, 고정 단축키(Ctrl+화살표/Alt+화살표/Ctrl+G/Esc/Enter/마키/팬/줌 등)는 참고 섹션으로 노출. ScrollViewer로 길이 증가 대응 |
 
 ## 컨버터
 
@@ -48,12 +48,17 @@
 | Converters/PathToImageConverter | 파일 경로 → `BitmapImage` (`BitmapCacheOption.OnLoad`로 파일 잠금 해제) |
 | Converters/InverseBooleanToVisibilityConverter | bool → `Visibility` 반전 (`HasCurrentNotebook` 빈 화면 안내용) |
 
-## 글로벌 단축키
+## 단축키
 
-| 단축키 (기본값) | 동작 |
-|--------|------|
-| `Ctrl+Shift+N` | 메인 창 표시 |
-| `Ctrl+Shift+M` | 오버레이 표시/숨기기 |
-| `Ctrl+Alt+Z` | 오버레이 클릭 패스스루 토글 |
+### 사용자 변경 가능 (트레이 → 단축키 설정)
 
-> 트레이 메뉴 → "단축키 설정"에서 모두 변경 가능
+**글로벌**: `Ctrl+Shift+N` 메인 창 / `Ctrl+Shift+M` 오버레이 / `Ctrl+Alt+Z` 클릭 패스스루
+**노트북 전환**: `Ctrl+1` ~ `Ctrl+9`, `Ctrl+0` → Notebooks[0..9] (해당 인덱스 없으면 무시)
+
+### 기본 단축키 (변경 불가)
+
+- 노트 이동: `Ctrl+화살표` 1px / `Ctrl+Shift+화살표` 10px / `화살표` 인접 노트로 선택 이동
+- 편집: `Enter` 편집 시작 / `Esc` 편집/선택 종료 / `Alt+화살표`(편집 중) 인접 노트로 편집 이동 / 더블클릭
+- 그룹: `Ctrl+G` 만들기 / `Ctrl+Shift+G` 해제
+- 선택: 빈 캔버스 좌클릭 드래그(마키) / `Shift+클릭` 토글
+- 캔버스: 휠클릭/우클릭 드래그(팬) / `Ctrl+휠`(줌) / `Ctrl+V`(붙여넣기)

@@ -266,11 +266,31 @@ MainWindow.OnSourceInitialized → ReregisterHotkeys()
   → HotkeyService.UnregisterAll()
   → 3개 등록: ShowMain / ToggleOverlay / ToggleClickThrough
 
-[변경]
-트레이 → "단축키 설정"
-  → HotkeySettingsDialog (캡처 박스에 키 누르면 PreviewKeyDown으로 저장)
+[변경 — 트레이 → "단축키 설정"]
+HotkeySettingsDialog (캡처 박스에 키 누르면 PreviewKeyDown으로 저장)
+  → 글로벌 핫키 3개 + 노트북 전환 10개 모두 한 다이얼로그에서 편집
   → 저장 시 SettingsService.Save() + MainWindow.ReregisterHotkeys()
-  → 실패하면(다른 앱 점유) MessageBox
+  → 글로벌만 RegisterHotKey 시도; 실패하면(다른 앱 점유) MessageBox
+```
+
+## 노트북 빠른 전환 (Ctrl+1 ~ Ctrl+0)
+
+```
+사용자 키 입력 (메인 창 포커스 시)
+  → MainWindow.Window_PreviewKeyDown
+  → TryHandleNotebookSwitch
+  → settings.NotebookSwitches[i].MatchesLocal(e) 매칭 시
+  → i < Notebooks.Count 면 CurrentNotebook = Notebooks[i]
+  → e.Handled = true
+```
+
+## 노트 미세/큰 단위 이동 (Ctrl+화살표 / Ctrl+Shift+화살표)
+
+```
+선택된 노트(다중 가능) + 비편집 상태 + Ctrl 눌림 + Alt 안 눌림
+  → step = Shift 눌렸으면 10, 아니면 1
+  → 각 선택 노트의 X/Y에 dx/dy 적용 + UpdateNotePosition (DB 저장)
+  → 격자 스냅과 무관 (절대 px 단위)
 ```
 
 ## 오버레이 클릭 패스스루

@@ -54,6 +54,9 @@
 - [x] **Enter로 선택 노트 편집 진입** — 비편집 상태에서 단일 선택 텍스트 노트가 있을 때 Enter → IsEditing=true 트리거
 - [x] **단일 인스턴스 (Mutex)** — Local 네임스페이스 Mutex로 한 사용자당 한 프로세스만. 두 번째 인스턴스는 EventWaitHandle 신호로 첫 인스턴스의 ShowMain만 호출하고 즉시 종료. 첫 인스턴스는 IsBackground 스레드에서 신호 대기
 - [x] **노트북별 오버레이 초안** — `Notebooks.OverlayDraft TEXT NOT NULL DEFAULT ''` 컬럼 + `NoteBook.OverlayDraft` ObservableProperty. MainVM의 NoteBook PropertyChanged 구독이 키 입력마다 DB 저장. OverlayViewModel은 노트북 전환 시 `_suppressDraftSave` 플래그로 단방향 로드. 기존 `AppSettings.OverlayDraft`는 제거
+- [x] **노트북 빠른 전환 단축키** — `AppSettings.NotebookSwitches[10]`(기본 Ctrl+1..Ctrl+0). `HotkeyBinding.MatchesLocal`로 로컬 키 매칭. `MainWindow.TryHandleNotebookSwitch`가 인덱스 매칭 시 `CurrentNotebook = Notebooks[i]`. 사용자 정의 가능
+- [x] **노트 미세/큰 단위 이동 단축키** — `MainWindow.TryHandleNoteNudge`. 비편집 + 선택 노트(다중 가능)에 대해 Ctrl+화살표=1px, Ctrl+Shift+화살표=10px. 즉시 DB 저장
+- [x] **단축키 설정창 통합** — `HotkeySettingsDialog`를 ScrollViewer + ItemsControl로 확장. 글로벌 3개 + 노트북 10개 모두 캡처/저장. 변경 불가 단축키(Ctrl+화살표, Alt+화살표, Ctrl+G, 마키 등)는 참고용으로 표시. 트레이 메뉴 "단축키 설정..."에서 호출
 - [x] **그룹 (NoteGroup)** — DB 테이블 `NoteGroups`(Id/NotebookId/X/Y/W/H). 멤버십은 동적(bbox 완전 내포). 그룹 점선 사각형 시각, Stroke만 hit-test 되어 내부 노트 클릭/마키 통과. 드래그 시작 시 `GetMembersOf`로 멤버 스냅샷, 그룹+멤버 모두 같은 Δ로 이동. Ctrl+G로 선택 노트 bbox+10px 패딩으로 그룹 생성, Ctrl+Shift+G/우클릭 메뉴로 해제. 노트와 그룹이 RenderTransform을 공유하도록 `Grid CanvasContent`로 묶음 — 그룹은 노트 뒤, 마키는 노트와 그룹 모두 인터섹트로 선택. 스냅 토글에 따라 그룹 드래그도 격자 정렬
 - [x] **일괄 스냅 (B, 애니메이션)** — `MainViewModel.BulkSnap()`. 전체 노트 좌상단 floor + 사이즈 ceil. (Y,X) 오름차순 정렬 후 충돌 시 dx/dy 최소 거리 계산해 짧은 방향 우선 시프트 (단순 우측 wrap 방식보다 노트가 멀리 사라지지 않음). DispatcherTimer 16ms × 100ms 선형 보간으로 이동/리사이즈 애니메이션, 완료 후 DB 저장. 우하단 ⊟ 버튼으로 발동
 - [x] **WPF 포커스 사각형 제거** — ItemsControl/ItemContainer/CanvasArea의 `FocusVisualStyle="{x:Null}"`

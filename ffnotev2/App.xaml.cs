@@ -209,6 +209,7 @@ public partial class App : Application
             SettingsService.Settings.ShowMain = dlg.Result.ShowMain;
             SettingsService.Settings.ToggleOverlay = dlg.Result.ToggleOverlay;
             SettingsService.Settings.ToggleClickThrough = dlg.Result.ToggleClickThrough;
+            SettingsService.Settings.NotebookSwitches = dlg.Result.NotebookSwitches;
             SettingsService.Save();
 
             if (!_mainWindow.ReregisterHotkeys())

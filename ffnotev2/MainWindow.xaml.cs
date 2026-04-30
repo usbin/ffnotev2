@@ -129,6 +129,12 @@ public partial class MainWindow : Window
             }
         }
 
+        // 노트북 빠른 전환 (Ctrl+1 ~ Ctrl+0, 사용자 지정 가능)
+        if (e.OriginalSource is not TextBox && TryHandleNotebookSwitch(e)) return;
+
+        // Ctrl+화살표(1px), Ctrl+Shift+화살표(10px) — 비편집 + 선택 노트들 이동
+        if (e.OriginalSource is not TextBox && TryHandleNoteNudge(e)) return;
+
         // 화살표 노트 이동:
         //   편집 중(TextBox 포커스): Alt+화살표 → 인접 노트로 편집 이동
         //   비편집: 화살표(Alt 무관) → 단일 선택 노트의 인접 노트로 선택 이동
@@ -198,6 +204,60 @@ public partial class MainWindow : Window
             }
         }
         e.Handled = true;
+    }
+
+    private bool TryHandleNotebookSwitch(KeyEventArgs e)
+    {
+        if (IsInsideListBox(e.OriginalSource)) return false;
+        var settings = ((App)Application.Current).SettingsService.Settings;
+        var switches = settings.NotebookSwitches;
+        if (switches is null) return false;
+        for (int i = 0; i < switches.Length; i++)
+        {
+            if (switches[i].MatchesLocal(e))
+            {
+                if (i < App.MainVM.Notebooks.Count)
+                {
+                    App.MainVM.CurrentNotebook = App.MainVM.Notebooks[i];
+                }
+                e.Handled = true;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private bool TryHandleNoteNudge(KeyEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control) return false;
+        // Alt 같이 눌리면 우리 케이스 아님
+        if ((Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt) return false;
+
+        var actualKey = e.Key == Key.System ? e.SystemKey : e.Key;
+        var (dxUnit, dyUnit) = actualKey switch
+        {
+            Key.Left  => (-1, 0),
+            Key.Right => ( 1, 0),
+            Key.Up    => ( 0, -1),
+            Key.Down  => ( 0, 1),
+            _ => (0, 0)
+        };
+        if (dxUnit == 0 && dyUnit == 0) return false;
+
+        var sel = App.MainVM.SelectedNotes.ToList();
+        if (sel.Count == 0) return false;
+
+        var step = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ? 10 : 1;
+        var dx = dxUnit * step;
+        var dy = dyUnit * step;
+        foreach (var n in sel)
+        {
+            n.X += dx;
+            n.Y += dy;
+            App.MainVM.UpdateNotePosition(n);
+        }
+        e.Handled = true;
+        return true;
     }
 
     private static Models.NoteItem? FindNoteFromVisual(DependencyObject? d)

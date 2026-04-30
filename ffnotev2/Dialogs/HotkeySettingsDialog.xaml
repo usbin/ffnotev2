@@ -1,65 +1,126 @@
 <Window x:Class="ffnotev2.Dialogs.HotkeySettingsDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="단축키 설정" Height="280" Width="460"
-        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
-    <Grid Margin="14">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <TextBlock Grid.Row="0" Margin="0,0,0,12" TextWrapping="Wrap" Foreground="#FF555555">
-            각 항목을 클릭한 뒤 원하는 키 조합을 누르세요. (Ctrl/Alt/Shift/Win + 영문/숫자/펑션 키)
-        </TextBlock>
-
-        <Grid Grid.Row="1" Margin="0,0,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="160"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="메인 창 표시" VerticalAlignment="Center"/>
-            <TextBox Grid.Column="1" x:Name="ShowMainBox" Padding="6"
-                     IsReadOnly="True" Cursor="Hand"
-                     Tag="ShowMain"
-                     PreviewKeyDown="HotkeyBox_PreviewKeyDown"
-                     GotFocus="HotkeyBox_GotFocus"/>
-        </Grid>
-
-        <Grid Grid.Row="2" Margin="0,0,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="160"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="오버레이 토글" VerticalAlignment="Center"/>
-            <TextBox Grid.Column="1" x:Name="ToggleOverlayBox" Padding="6"
-                     IsReadOnly="True" Cursor="Hand"
-                     Tag="ToggleOverlay"
-                     PreviewKeyDown="HotkeyBox_PreviewKeyDown"
-                     GotFocus="HotkeyBox_GotFocus"/>
-        </Grid>
-
-        <Grid Grid.Row="3" Margin="0,0,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="160"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="클릭 패스스루 토글" VerticalAlignment="Center"/>
-            <TextBox Grid.Column="1" x:Name="ToggleClickThroughBox" Padding="6"
-                     IsReadOnly="True" Cursor="Hand"
-                     Tag="ToggleClickThrough"
-                     PreviewKeyDown="HotkeyBox_PreviewKeyDown"
-                     GotFocus="HotkeyBox_GotFocus"/>
-        </Grid>
-
-        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+        Title="단축키 설정" Height="640" Width="540"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
+        MinHeight="400" MinWidth="420">
+    <DockPanel Margin="14">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="기본값" Width="80" Margin="0,0,8,0" Click="Reset_Click"/>
             <Button Content="저장" Width="80" Margin="0,0,8,0" Click="Save_Click" IsDefault="True"/>
             <Button Content="취소" Width="80" IsCancel="True"/>
         </StackPanel>
-    </Grid>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock TextWrapping="Wrap" Foreground="#FF666666" Margin="0,0,0,12">
+                    각 항목의 입력란을 클릭한 뒤 원하는 키 조합을 누르세요. (Ctrl/Alt/Shift/Win + 영문/숫자/펑션 키)
+                    Esc로 입력 취소.
+                </TextBlock>
+
+                <TextBlock Text="글로벌 단축키" FontWeight="Bold" Margin="0,0,0,6"/>
+                <TextBlock Text="윈도우 어디서든 작동" Foreground="#FF888888" FontSize="11" Margin="0,0,0,8"/>
+
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="180"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="메인 창 표시" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" x:Name="ShowMainBox" Padding="6"
+                             IsReadOnly="True" Cursor="Hand" Tag="ShowMain"
+                             PreviewKeyDown="GlobalHotkeyBox_PreviewKeyDown"
+                             GotFocus="HotkeyBox_GotFocus"/>
+                </Grid>
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="180"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="오버레이 토글" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" x:Name="ToggleOverlayBox" Padding="6"
+                             IsReadOnly="True" Cursor="Hand" Tag="ToggleOverlay"
+                             PreviewKeyDown="GlobalHotkeyBox_PreviewKeyDown"
+                             GotFocus="HotkeyBox_GotFocus"/>
+                </Grid>
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="180"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="클릭 패스스루 토글" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" x:Name="ToggleClickThroughBox" Padding="6"
+                             IsReadOnly="True" Cursor="Hand" Tag="ToggleClickThrough"
+                             PreviewKeyDown="GlobalHotkeyBox_PreviewKeyDown"
+                             GotFocus="HotkeyBox_GotFocus"/>
+                </Grid>
+
+                <TextBlock Text="노트북 전환" FontWeight="Bold" Margin="0,16,0,6"/>
+                <TextBlock Text="메인 창 포커스 시 작동. 해당 인덱스의 노트북이 없으면 무시" Foreground="#FF888888" FontSize="11" Margin="0,0,0,8"/>
+
+                <ItemsControl x:Name="NotebookSwitchesList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1" Text="{Binding Display, Mode=OneWay}" Padding="6"
+                                         IsReadOnly="True" Cursor="Hand" Tag="{Binding}"
+                                         PreviewKeyDown="LocalHotkeyBox_PreviewKeyDown"
+                                         GotFocus="HotkeyBox_GotFocus"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="기본 단축키 (변경 불가, 참고용)" FontWeight="Bold" Margin="0,16,0,6"/>
+                <Border BorderBrush="#FFDDDDDD" BorderThickness="1" CornerRadius="3" Padding="10" Background="#FFFAFAFA">
+                    <StackPanel>
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#FF555555">
+                            <Run FontWeight="Bold">노트 이동 (선택 후 비편집 상태)</Run>
+                            <LineBreak/>
+                            • Ctrl + 화살표 — 1px 정밀 이동
+                            <LineBreak/>
+                            • Ctrl + Shift + 화살표 — 10px 단위 이동
+                            <LineBreak/>
+                            • 화살표 — 인접 노트로 선택 이동
+                            <LineBreak/><LineBreak/>
+                            <Run FontWeight="Bold">편집</Run>
+                            <LineBreak/>
+                            • Enter — 선택된 텍스트 노트 편집 시작
+                            <LineBreak/>
+                            • Esc — 편집 종료 / 선택 해제
+                            <LineBreak/>
+                            • Alt + 화살표 (편집 중) — 인접 텍스트 노트로 편집 이동
+                            <LineBreak/>
+                            • 더블클릭 — 텍스트 노트 편집 시작
+                            <LineBreak/><LineBreak/>
+                            <Run FontWeight="Bold">그룹</Run>
+                            <LineBreak/>
+                            • Ctrl + G — 선택 노트로 그룹 만들기
+                            <LineBreak/>
+                            • Ctrl + Shift + G — 선택된 그룹 해제
+                            <LineBreak/><LineBreak/>
+                            <Run FontWeight="Bold">선택</Run>
+                            <LineBreak/>
+                            • 빈 캔버스 좌클릭 드래그 — 마키 선택 (인터섹트)
+                            <LineBreak/>
+                            • Shift + 클릭 — 선택 토글
+                            <LineBreak/><LineBreak/>
+                            <Run FontWeight="Bold">캔버스 / 클립보드</Run>
+                            <LineBreak/>
+                            • 휠클릭 또는 우클릭 드래그 — 캔버스 팬
+                            <LineBreak/>
+                            • Ctrl + 휠 — 마우스 위치 기준 줌
+                            <LineBreak/>
+                            • Ctrl + V — 클립보드 붙여넣기 (이미지/링크/텍스트)
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
 </Window>
