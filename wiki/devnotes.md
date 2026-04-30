@@ -3,6 +3,9 @@
 
 ## 최근 변경 (2026-04-30)
 
+- **우클릭+휠 줌 후 드래그 점프 버그 수정**: 우클릭을 누른 채 휠로 줌한 뒤 그대로 드래그하면 뷰가 튀던 문제. 원인: 줌 시 `CanvasTranslate`는 앵커 보정으로 새 값이 되지만 팬 기준점(`_panStart`/`_panStartTx`/`_panStartTy`)은 버튼 누른 최초 시점 값 그대로여서, 이후 드래그 시 `_panStartTx + dx`가 줌 이전 위치로 점프. 수정: `CanvasArea_MouseWheel`에서 줌 적용 후 팬이 진행 중이면(`_panButton is not null`) 기준점을 현재 마우스 위치·현재 Translate로 갱신.
+- **그룹 키보드 이동(Ctrl+화살표, Ctrl+Shift+화살표) 지원**: `TryHandleNoteNudge`가 `SelectedNotes`만 처리하고 `SelectedGroups`는 무시해 그룹 선택 시 방향키가 동작하지 않던 버그. 수정: `SelectedGroups`도 수집하고, `GetMembersOf`로 그룹의 멤버 노트·하위그룹도 포함 — 드래그와 동일한 방식. `HashSet`으로 중복 제거해 멤버 노트가 독립 선택된 경우에도 두 번 이동하지 않음. Ctrl+Shift(격자 정렬) pivot은 그룹 선택 시 첫 번째 그룹, 노트만 선택 시 첫 번째 노트 기준. Undo 스택에도 그룹 변경분 포함.
+
 - **본문 드래그 capture leak 버그 수정 + 미선택 클릭+드래그 + 드래그 중 커서 + 우클릭 휠 줌 (v1.0.7)**:
    - **Capture leak**: UC `PreviewMouseLeftButtonUp`이 tunneling으로 먼저 fire해 `_isDragging=false`로 리셋 → 이후 타이틀바 Border의 bubbling `MouseLeftButtonUp`이 `if (!_isDragging) return;`로 즉시 종료해 `ReleaseMouseCapture` 못 호출 → 캡처가 타이틀바 Border에 남아 이후 모든 클릭이 그 Border로 라우팅되며 빈 캔버스 클릭조차 새 드래그 시작. 수정: UC의 Preview Move/Up 핸들러가 `IsMouseCaptured`가 true일 때만(=본문 드래그) cleanup. 타이틀바 드래그(타이틀바 Border가 캡처)는 자체 핸들러에 위임.
    - **미선택 클릭+드래그**: `_clickStartedSelected` 게이트 제거. 비선택 노트 첫 클릭 시 `SelectOnly`로 선택된 후 본문 드래그 후보 setup이 그대로 진행 → 4px 임계값 초과 시 같은 클릭에서 즉시 드래그로 이어짐(단순 click+release는 4px 미만이라 선택만).
@@ -89,7 +92,7 @@
 - [x] **단일 인스턴스 (Mutex)** — Local 네임스페이스 Mutex로 한 사용자당 한 프로세스만. 두 번째 인스턴스는 EventWaitHandle 신호로 첫 인스턴스의 ShowMain만 호출하고 즉시 종료. 첫 인스턴스는 IsBackground 스레드에서 신호 대기
 - [x] **노트북별 오버레이 초안** — `Notebooks.OverlayDraft TEXT NOT NULL DEFAULT ''` 컬럼 + `NoteBook.OverlayDraft` ObservableProperty. MainVM의 NoteBook PropertyChanged 구독이 키 입력마다 DB 저장. OverlayViewModel은 노트북 전환 시 `_suppressDraftSave` 플래그로 단방향 로드. 기존 `AppSettings.OverlayDraft`는 제거
 - [x] **노트북 빠른 전환 단축키** — `AppSettings.NotebookSwitches[10]`(기본 Ctrl+1..Ctrl+0). `HotkeyBinding.MatchesLocal`로 로컬 키 매칭. `MainWindow.TryHandleNotebookSwitch`가 인덱스 매칭 시 `CurrentNotebook = Notebooks[i]`. 사용자 정의 가능
-- [x] **노트 미세/큰 단위 이동 단축키** — `MainWindow.TryHandleNoteNudge`. 비편집 + 선택 노트(다중 가능)에 대해 Ctrl+화살표=1px, Ctrl+Shift+화살표=10px. 즉시 DB 저장
+- [x] **노트/그룹 미세/큰 단위 이동 단축키** — `MainWindow.TryHandleNoteNudge`. 비편집 + 선택 노트·그룹(다중 가능)에 대해 Ctrl+화살표=1px, Ctrl+Shift+화살표=10px. 그룹은 멤버 노트·하위그룹 동기 이동, HashSet 중복 제거. 즉시 DB 저장
 - [x] **단축키 설정창 통합** — `HotkeySettingsDialog`를 ScrollViewer + ItemsControl로 확장. 글로벌 3개 + 노트북 10개 모두 캡처/저장. 변경 불가 단축키(Ctrl+화살표, Alt+화살표, Ctrl+G, 마키 등)는 참고용으로 표시. 트레이 메뉴 "단축키 설정..."에서 호출
 - [x] **빈 캔버스 클릭 시 편집 포커스 해제** — CanvasArea 좌클릭 마키 시작 시점에 `FocusCanvas()` 호출 → 편집 중이던 TextBox LostFocus(저장)
 - [x] **Ctrl+Shift+화살표 격자 정렬 이동** — 첫 선택 노트 기준 격자에 맞도록 dx/dy 계산 후 모든 선택 노트에 같은 Δ 적용. 비격자 위치도 격자선에 정렬되며 한 칸 이동, 다중 선택 시 상대 위치 유지

@@ -128,75 +128,152 @@ public partial class MainViewModel : ObservableObject
     {
         if (CurrentNotebook is null) return;
         if (_bulkSnapTimer is { IsEnabled: true }) return; // 진행 중이면 무시
-        var notes = CurrentNotebook.Notes.ToList();
-        if (notes.Count == 0) return;
 
-        // 1) 목표 위치/크기 계산 (모델은 아직 변경하지 않음)
-        var targets = new Dictionary<NoteItem, (double X, double Y, double W, double H)>();
-        foreach (var n in notes)
+        var allNotes  = CurrentNotebook.Notes.ToList();
+        var allGroups = CurrentNotebook.Groups.ToList();
+        if (allNotes.Count == 0 && allGroups.Count == 0) return;
+
+        // ── 1. 최상위 그룹 / 자유 노트 분류 ───────────────────────────────
+        // 최상위 그룹: 다른 그룹 bbox에 완전 내포되지 않은 그룹
+        bool GroupContains(NoteGroup outer, NoteGroup inner) =>
+            inner.X >= outer.X && inner.Y >= outer.Y &&
+            inner.X + inner.Width  <= outer.X + outer.Width &&
+            inner.Y + inner.Height <= outer.Y + outer.Height;
+
+        var topGroups = allGroups
+            .Where(g => !allGroups.Any(o => o != g && GroupContains(o, g)))
+            .ToList();
+
+        // 자유 노트: 어떤 그룹에도 완전 내포되지 않는 노트
+        var freeNotes = allNotes.Where(n => !allGroups.Any(g =>
+            n.X >= g.X && n.Y >= g.Y &&
+            n.X + n.Width  <= g.X + g.Width &&
+            n.Y + n.Height <= g.Y + g.Height)).ToList();
+
+        // ── 2. 목표 위치 계산 ─────────────────────────────────────────────
+        // 자유 노트: X/Y floor, W/H ceil
+        var freeNoteTargets = freeNotes.ToDictionary(n => n, n => (
+            X: Math.Floor(n.X / GridSize) * GridSize,
+            Y: Math.Floor(n.Y / GridSize) * GridSize,
+            W: Math.Ceiling(n.Width  / GridSize) * GridSize,
+            H: Math.Ceiling(n.Height / GridSize) * GridSize));
+
+        // 최상위 그룹: X/Y floor (W/H 변경 없음 — 멤버십 보존)
+        var groupTargetXY = topGroups.ToDictionary(g => g, g => (
+            X: Math.Floor(g.X / GridSize) * GridSize,
+            Y: Math.Floor(g.Y / GridSize) * GridSize));
+
+        // ── 3. 충돌 해결 (자유 노트 + 최상위 그룹 혼합) ──────────────────
+        int fn = freeNotes.Count, gn = topGroups.Count;
+        double[] tx = new double[fn + gn], ty = new double[fn + gn],
+                 tw = new double[fn + gn], th = new double[fn + gn];
+
+        for (int i = 0; i < fn; i++)
         {
-            targets[n] = (
-                Math.Floor(n.X / GridSize) * GridSize,
-                Math.Floor(n.Y / GridSize) * GridSize,
-                Math.Ceiling(n.Width / GridSize) * GridSize,
-                Math.Ceiling(n.Height / GridSize) * GridSize
-            );
+            var t = freeNoteTargets[freeNotes[i]];
+            (tx[i], ty[i], tw[i], th[i]) = (t.X, t.Y, t.W, t.H);
+        }
+        for (int i = 0; i < gn; i++)
+        {
+            var g = topGroups[i];
+            var t = groupTargetXY[g];
+            (tx[fn + i], ty[fn + i], tw[fn + i], th[fn + i]) = (t.X, t.Y, g.Width, g.Height);
         }
 
-        // 2) 목표 좌표 기준 (Y, X) 오름차순으로 처리
-        var sorted = notes.OrderBy(n => targets[n].Y).ThenBy(n => targets[n].X).ToList();
+        var order = Enumerable.Range(0, fn + gn)
+            .OrderBy(i => ty[i]).ThenBy(i => tx[i]).ToList();
 
-        // 3) 충돌 해결 — 짧은 방향 우선 시프트
         var placed = new List<(double X, double Y, double W, double H)>();
         const int hardSafety = 10_000;
-        foreach (var n in sorted)
+        foreach (var idx in order)
         {
-            var t = targets[n];
             var safety = 0;
             while (true)
             {
-                var overlap = placed.Where(p => RectOverlaps(t.X, t.Y, t.W, t.H, p.X, p.Y, p.W, p.H)).ToList();
+                var overlap = placed.Where(p =>
+                    RectOverlaps(tx[idx], ty[idx], tw[idx], th[idx], p.X, p.Y, p.W, p.H)).ToList();
                 if (overlap.Count == 0) break;
-                var dx = overlap.Max(p => p.X + p.W - t.X);
-                var dy = overlap.Max(p => p.Y + p.H - t.Y);
-                dx = Math.Ceiling(dx / GridSize) * GridSize;
-                dy = Math.Ceiling(dy / GridSize) * GridSize;
-                if (dx <= dy) t.X += dx;
-                else t.Y += dy;
+                var ddx = overlap.Max(p => p.X + p.W - tx[idx]);
+                var ddy = overlap.Max(p => p.Y + p.H - ty[idx]);
+                ddx = Math.Ceiling(ddx / GridSize) * GridSize;
+                ddy = Math.Ceiling(ddy / GridSize) * GridSize;
+                if (ddx <= ddy) tx[idx] += ddx;
+                else ty[idx] += ddy;
                 if (++safety > hardSafety) break;
             }
-            targets[n] = t;
-            placed.Add(t);
+            placed.Add((tx[idx], ty[idx], tw[idx], th[idx]));
         }
 
-        // 4) 애니메이션: 현재 → 목표 (300ms, ease-out cubic)
-        var start = notes.ToDictionary(n => n, n => (n.X, n.Y, n.Width, n.Height));
-        var sw = Stopwatch.StartNew();
+        // 충돌 해결 결과 반영
+        for (int i = 0; i < fn; i++)
+            freeNoteTargets[freeNotes[i]] = (tx[i], ty[i], tw[i], th[i]);
+        for (int i = 0; i < gn; i++)
+            groupTargetXY[topGroups[i]] = (tx[fn + i], ty[fn + i]);
+
+        // ── 4. 그룹 멤버(노트·하위그룹)에 그룹 delta 전파 ────────────────
+        var memberNoteTargets  = new Dictionary<NoteItem,  (double X, double Y, double W, double H)>();
+        var memberGroupTargets = new Dictionary<NoteGroup, (double X, double Y)>();
+
+        foreach (var g in topGroups)
+        {
+            var t = groupTargetXY[g];
+            double ddx = t.X - g.X, ddy = t.Y - g.Y;
+            if (ddx == 0 && ddy == 0) continue;
+            var (mNotes, mGroups) = GetMembersOf(g);
+            foreach (var n  in mNotes)  memberNoteTargets[n]   = (n.X + ddx, n.Y + ddy, n.Width, n.Height);
+            foreach (var sg in mGroups) memberGroupTargets[sg] = (sg.X + ddx, sg.Y + ddy);
+        }
+
+        // ── 5. 애니메이션 ────────────────────────────────────────────────
+        var animNotes  = freeNotes.Concat(memberNoteTargets.Keys).ToList();
+        var animGroups = topGroups.Concat(memberGroupTargets.Keys).ToList();
+
+        var noteStart  = animNotes.ToDictionary(n => n, n => (n.X, n.Y, n.Width, n.Height));
+        var groupStart = animGroups.ToDictionary(g => g, g => (g.X, g.Y));
+
+        var allNoteTargets = new Dictionary<NoteItem, (double X, double Y, double W, double H)>(freeNoteTargets);
+        foreach (var kv in memberNoteTargets) allNoteTargets[kv.Key] = kv.Value;
+
+        var allGroupTargets = new Dictionary<NoteGroup, (double X, double Y)>();
+        foreach (var g in topGroups)          allGroupTargets[g]  = groupTargetXY[g];
+        foreach (var kv in memberGroupTargets) allGroupTargets[kv.Key] = kv.Value;
+
+        var sw       = Stopwatch.StartNew();
         var duration = TimeSpan.FromMilliseconds(100);
         _bulkSnapTimer?.Stop();
         _bulkSnapTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
         _bulkSnapTimer.Tick += (_, _) =>
         {
             var prog = Math.Min(1.0, sw.Elapsed.TotalMilliseconds / duration.TotalMilliseconds);
-            foreach (var n in notes)
+            foreach (var n in animNotes)
             {
-                var s = start[n];
-                var tg = targets[n];
+                var s = noteStart[n]; var tg = allNoteTargets[n];
                 n.X = s.X + (tg.X - s.X) * prog;
                 n.Y = s.Y + (tg.Y - s.Y) * prog;
-                n.Width = s.Width + (tg.W - s.Width) * prog;
+                n.Width  = s.Width  + (tg.W - s.Width)  * prog;
                 n.Height = s.Height + (tg.H - s.Height) * prog;
+            }
+            foreach (var g in animGroups)
+            {
+                var s = groupStart[g]; var tg = allGroupTargets[g];
+                g.X = s.X + (tg.X - s.X) * prog;
+                g.Y = s.Y + (tg.Y - s.Y) * prog;
             }
             if (prog >= 1.0)
             {
                 _bulkSnapTimer!.Stop();
-                // 부동소수 오차 방지를 위해 마지막에 정확한 격자값으로 스냅 + DB 저장
-                foreach (var n in notes)
+                // 부동소수 오차 방지: 마지막에 정확한 목표값으로 확정 + DB 저장
+                foreach (var n in animNotes)
                 {
-                    var tg = targets[n];
-                    n.X = tg.X; n.Y = tg.Y;
-                    n.Width = tg.W; n.Height = tg.H;
+                    var tg = allNoteTargets[n];
+                    n.X = tg.X; n.Y = tg.Y; n.Width = tg.W; n.Height = tg.H;
                     _db.UpdateNote(n);
+                }
+                foreach (var g in animGroups)
+                {
+                    var tg = allGroupTargets[g];
+                    g.X = tg.X; g.Y = tg.Y;
+                    _db.UpdateGroup(g);
                 }
             }
         };
