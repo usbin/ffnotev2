@@ -23,11 +23,12 @@
             </Style>
         </Border.Style>
         <Grid>
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="22"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
+            <!-- 안쪽: 본문 (타이틀바 + 콘텐츠 영역) -->
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="22"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
             <!-- 타이틀바 (드래그 영역) -->
             <Border Grid.Row="0" Background="#FF3C3C3C" CornerRadius="4,4,0,0"
@@ -53,9 +54,10 @@
                 <!-- 텍스트: 표시(TextBlock)와 편집(TextBox)을 스왑해서 IME 컨텍스트 버그 회피 -->
                 <Grid Visibility="{Binding Type, Converter={StaticResource TypeVis}, ConverterParameter=Text}">
                     <ScrollViewer x:Name="TextDisplayScroll"
-                                  VerticalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Hidden"
                                   HorizontalScrollBarVisibility="Disabled"
-                                  Padding="6">
+                                  Padding="6"
+                                  CanContentScroll="False">
                         <TextBlock x:Name="TextDisplay"
                                    Text="{Binding Content}"
                                    Foreground="#FFEEEEEE"
@@ -78,10 +80,11 @@
                              LostFocus="TextEditor_LostFocus"
                              PreviewKeyDown="TextEditor_PreviewKeyDown"/>
                 </Grid>
-                <!-- 이미지 -->
+                <!-- 이미지: 빠른 스케일링 모드(드래그 리사이즈 시 매 프레임 부하 감소) -->
                 <Image Visibility="{Binding Type, Converter={StaticResource TypeVis}, ConverterParameter=Image}"
                        Source="{Binding Content, Converter={StaticResource PathToImage}}"
-                       Stretch="Uniform"/>
+                       Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="LowQuality"/>
                 <!-- 링크 -->
                 <TextBlock Visibility="{Binding Type, Converter={StaticResource TypeVis}, ConverterParameter=Link}"
                            VerticalAlignment="Center" Margin="8" TextWrapping="Wrap">
