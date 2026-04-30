@@ -535,7 +535,13 @@ public partial class MainWindow : Window
 
     private void CanvasArea_MouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control) return;
+        var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+        var rmb = e.RightButton == MouseButtonState.Pressed;
+        if (!ctrl && !rmb) return;
+
+        // 우클릭 누른 채 휠로 줌하면, 우클릭 떼는 순간 컨텍스트 메뉴 뜨지 않도록
+        // pan 'moved' 플래그를 set해서 떼기 시점에 메뉴 억제
+        if (rmb && _panButton == MouseButton.Right) _panMoved = true;
 
         var mouse = e.GetPosition(CanvasArea);
         var (worldX, worldY) = ScreenToWorld(mouse);

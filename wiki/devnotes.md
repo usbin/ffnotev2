@@ -3,6 +3,11 @@
 
 ## 최근 변경 (2026-04-30)
 
+- **본문 드래그 capture leak 버그 수정 + 미선택 클릭+드래그 + 드래그 중 커서 + 우클릭 휠 줌 (v1.0.7)**:
+   - **Capture leak**: UC `PreviewMouseLeftButtonUp`이 tunneling으로 먼저 fire해 `_isDragging=false`로 리셋 → 이후 타이틀바 Border의 bubbling `MouseLeftButtonUp`이 `if (!_isDragging) return;`로 즉시 종료해 `ReleaseMouseCapture` 못 호출 → 캡처가 타이틀바 Border에 남아 이후 모든 클릭이 그 Border로 라우팅되며 빈 캔버스 클릭조차 새 드래그 시작. 수정: UC의 Preview Move/Up 핸들러가 `IsMouseCaptured`가 true일 때만(=본문 드래그) cleanup. 타이틀바 드래그(타이틀바 Border가 캡처)는 자체 핸들러에 위임.
+   - **미선택 클릭+드래그**: `_clickStartedSelected` 게이트 제거. 비선택 노트 첫 클릭 시 `SelectOnly`로 선택된 후 본문 드래그 후보 setup이 그대로 진행 → 4px 임계값 초과 시 같은 클릭에서 즉시 드래그로 이어짐(단순 click+release는 4px 미만이라 선택만).
+   - **드래그 중 커서**: 본문 드래그는 UC가 캡처를 잡는데 UC.Cursor가 기본값이라 capture 중 SizeAll이 적용 안 됨. `Mouse.OverrideCursor = Cursors.SizeAll`로 전역 강제. 종료 시 `null`로 해제.
+   - **우클릭+휠 줌**: `Ctrl+휠`에 더해 `우클릭 누른 채 휠`도 줌 트리거. `e.RightButton == Pressed` 검사. 우클릭 휠 후 우클릭 떼기 시 컨텍스트 메뉴 뜨지 않도록 `_panMoved=true` set.
 - **본문 드래그를 UserControl Preview 레벨로 이동 (v1.0.6)**: v1.0.5의 body Grid Background=Transparent 추가만으로는 사용자 환경에서 BodyDrag MouseLeftButtonDown이 발화하지 않는 케이스 발견. 원인 정확히 특정 못 했지만(이벤트 라우팅/hit-test 변수), Preview 이벤트는 OriginalSource까지 무조건 tunneling하므로 컨테이너 hit-test 상태와 무관하게 발화 보장. body Grid의 BodyDrag_* 핸들러 제거하고 `UserControl_PreviewMouseLeftButtonDown/Move/Up`로 통합. body Grid에 `x:Name="BodyArea"`를 부여 + `IsOnBodyArea(visual)` 헬퍼로 OriginalSource가 본문 자손인지 검사 → 타이틀바·리사이즈 Thumb 클릭은 자동 제외(BodyArea 외부). 캡처는 UserControl 자신이 잡아 후속 Move/Up 라우팅 보장.
 - **GroupDeleteDialog 키보드 포커스 (v1.0.6)**: 다이얼로그 열릴 때 "일괄 삭제" 버튼에 자동 포커스(`FocusManager.FocusedElement`) + `IsDefault=true`로 Enter 시 일괄 삭제. Tab으로 그룹만 삭제 / 취소 사이 이동.
 - **본문 드래그 hit-test 수정 (v1.0.5)**: 본문 Grid에 `Background="Transparent"` 추가. 빈 영역(텍스트 글자 사이 여백, 짧은 텍스트 아래 공간 등)이 hit-test되지 않아 `BodyDrag_MouseLeftButtonDown`이 발화 안 되던 버그. 호버 시 SizeAll 커서는 보이지만(`Cursor` 속성 상속) 마우스 이벤트는 발화 안 됐음.

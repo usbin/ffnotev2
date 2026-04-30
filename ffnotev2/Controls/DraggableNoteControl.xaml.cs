@@ -16,8 +16,6 @@ public partial class DraggableNoteControl : UserControl
     private Point _dragStart;
     // 일괄 드래그를 위해 선택된 모든 노트의 시작 좌표 캡처
     private List<(NoteItem Item, double StartX, double StartY)> _dragGroup = new();
-    // 본문 드래그 — 클릭 시작 시점에 이미 선택돼 있던 경우만 활성화 (첫 클릭으로의 선택 전환은 드래그 X)
-    private bool _clickStartedSelected;
     // 본문 드래그 후보 상태: MouseDown 시 set → MouseMove에서 임계값 초과 시 실제 드래그로 승격
     private bool _bodyPotentialDrag;
     private Point _bodyDragStartScreen;
@@ -182,11 +180,6 @@ public partial class DraggableNoteControl : UserControl
     {
         if (Item is null) return;
 
-        // 본문 드래그가 "이미 선택된 상태"에서만 트리거되도록 클릭 시작 시점의 선택 상태 보존.
-        // 미선택 상태에서 첫 클릭은 SelectOnly에 의해 IsSelected=true가 되지만,
-        // 이 클릭으로 곧바로 드래그가 시작되면 단순 선택 의도와 충돌함.
-        _clickStartedSelected = Item.IsSelected;
-
         // 다른 노트의 TextBox에서 편집 중이라면 LostFocus를 트리거해 표시 모드로 복귀시킴.
         if (!IsInsideTextBox(e.OriginalSource) && Window.GetWindow(this) is MainWindow mw)
             mw.FocusCanvas();
@@ -204,9 +197,9 @@ public partial class DraggableNoteControl : UserControl
         if (!Item.IsSelected)
             App.MainVM.SelectOnly(Item);
 
-        // 본문 드래그 후보 setup — OriginalSource가 BodyArea 자손이고, 이미 선택된 상태였고,
-        // 단일 클릭이고, 편집 중이 아니면. 캡처/Handled는 임계값 초과 후 PreviewMouseMove에서 처리.
-        if (!_clickStartedSelected) return;
+        // 본문 드래그 후보 setup — 단일 클릭 + 편집 중 아님 + BodyArea 자손이면 활성.
+        // 4px 임계값으로 단순 클릭(선택만)과 클릭+드래그를 구분 → 미선택 상태 클릭+드래그도
+        // 이 클릭에서 즉시 선택+드래그로 자연스럽게 이어짐.
         if (e.ClickCount > 1) return;
         if (Item.Type == NoteType.Text && TextEditor.Visibility == Visibility.Visible) return;
         if (!IsOnBodyArea(e.OriginalSource)) return;
@@ -235,9 +228,14 @@ public partial class DraggableNoteControl : UserControl
             _dragGroup = group.Select(n => (n, n.X, n.Y)).ToList();
             // UserControl 자신이 캡처를 잡음 — 후속 MouseMove/Up이 모두 이 컨트롤로 라우팅
             ((UIElement)sender).CaptureMouse();
+            // 드래그 중 커서를 SizeAll로 강제 — UserControl.Cursor가 기본값이라 캡처 중에는
+            // BodyArea의 DataTrigger Cursor가 적용 안 됨. OverrideCursor로 전역 강제.
+            Mouse.OverrideCursor = Cursors.SizeAll;
             e.Handled = true;
         }
-        if (_isDragging) TitleBar_MouseMove(sender, e);
+        // UC가 캡처를 가진 경우에만(=본문 드래그) move 처리. 타이틀바 드래그는 타이틀바 Border가
+        // 캡처를 잡고 자체 MouseMove로 처리하므로 여기서 중복 호출/간섭하지 않음.
+        if (_isDragging && IsMouseCaptured) TitleBar_MouseMove(sender, e);
     }
 
     private void UserControl_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -248,9 +246,13 @@ public partial class DraggableNoteControl : UserControl
             _bodyPotentialDrag = false;
             return;
         }
-        if (_isDragging)
+        // UC가 캡처를 가진 경우에만(=본문 드래그) cleanup. 타이틀바 드래그는 타이틀바 Border가
+        // 자체 MouseLeftButtonUp에서 cleanup하므로 가로채면 안 됨 — 가로채면 _isDragging이 먼저
+        // false로 리셋돼 타이틀바 핸들러가 ReleaseMouseCapture를 못 호출하고 캡처가 leak됨.
+        if (_isDragging && IsMouseCaptured)
         {
             TitleBar_MouseLeftButtonUp(sender, e);
+            Mouse.OverrideCursor = null;
             e.Handled = true;
         }
     }
