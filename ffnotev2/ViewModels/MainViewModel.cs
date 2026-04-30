@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ffnotev2.Models;
@@ -96,65 +98,97 @@ public partial class MainViewModel : ObservableObject
         return (notes, groups);
     }
 
+    private DispatcherTimer? _bulkSnapTimer;
+
     /// <summary>
-    /// 현재 노트북의 모든 노트를 일괄 격자 정렬:
-    /// 1) 위치는 좌상단으로 floor 스냅, 크기는 ceil 스냅
-    /// 2) (Y,X) 오름차순으로 처리하면서 이미 배치된 노트와 겹치면 우측으로 격자 단위 시프트
-    /// 3) 같은 행에서 너무 오른쪽으로 가면 한 행 아래로 내리고 X를 원래 위치로 리셋
+    /// 현재 노트북의 모든 노트를 일괄 격자 정렬한 뒤, 시작 위치 → 목표 위치/크기까지
+    /// 약 300ms ease-out cubic 애니메이션으로 부드럽게 이동.
+    /// 충돌 해결: 매 반복마다 "오른쪽으로 빠져나갈 거리"와 "아래로 빠져나갈 거리"를 계산해
+    /// 더 짧은 쪽으로 밀어냄 (노트가 멀리 사라지지 않도록).
     /// </summary>
     public void BulkSnap()
     {
         if (CurrentNotebook is null) return;
+        if (_bulkSnapTimer is { IsEnabled: true }) return; // 진행 중이면 무시
         var notes = CurrentNotebook.Notes.ToList();
         if (notes.Count == 0) return;
 
-        // 1) 좌상단 floor + 사이즈 ceil
+        // 1) 목표 위치/크기 계산 (모델은 아직 변경하지 않음)
+        var targets = new Dictionary<NoteItem, (double X, double Y, double W, double H)>();
         foreach (var n in notes)
         {
-            n.X = Math.Floor(n.X / GridSize) * GridSize;
-            n.Y = Math.Floor(n.Y / GridSize) * GridSize;
-            n.Width = Math.Ceiling(n.Width / GridSize) * GridSize;
-            n.Height = Math.Ceiling(n.Height / GridSize) * GridSize;
+            targets[n] = (
+                Math.Floor(n.X / GridSize) * GridSize,
+                Math.Floor(n.Y / GridSize) * GridSize,
+                Math.Ceiling(n.Width / GridSize) * GridSize,
+                Math.Ceiling(n.Height / GridSize) * GridSize
+            );
         }
 
-        // 2) (Y, X) 오름차순으로 처리
-        notes.Sort((a, b) =>
-        {
-            var c = a.Y.CompareTo(b.Y);
-            return c != 0 ? c : a.X.CompareTo(b.X);
-        });
+        // 2) 목표 좌표 기준 (Y, X) 오름차순으로 처리
+        var sorted = notes.OrderBy(n => targets[n].Y).ThenBy(n => targets[n].X).ToList();
 
-        // 3) 충돌 해결 — 우측 시프트 우선, 한 행 너무 길어지면 아래 행으로 wrap
-        var placed = new List<NoteItem>();
-        const int maxRightStepsPerRow = 200;
-        const int hardSafety = 50_000;
-        foreach (var n in notes)
+        // 3) 충돌 해결 — 짧은 방향 우선 시프트
+        var placed = new List<(double X, double Y, double W, double H)>();
+        const int hardSafety = 10_000;
+        foreach (var n in sorted)
         {
-            var origX = n.X;
-            var rightSteps = 0;
+            var t = targets[n];
             var safety = 0;
-            while (placed.Any(p => Overlaps(n, p)))
+            while (true)
             {
-                n.X += GridSize;
-                rightSteps++;
-                if (rightSteps > maxRightStepsPerRow)
-                {
-                    rightSteps = 0;
-                    n.X = origX;
-                    n.Y += GridSize;
-                }
+                var overlap = placed.Where(p => RectOverlaps(t.X, t.Y, t.W, t.H, p.X, p.Y, p.W, p.H)).ToList();
+                if (overlap.Count == 0) break;
+                var dx = overlap.Max(p => p.X + p.W - t.X);
+                var dy = overlap.Max(p => p.Y + p.H - t.Y);
+                dx = Math.Ceiling(dx / GridSize) * GridSize;
+                dy = Math.Ceiling(dy / GridSize) * GridSize;
+                if (dx <= dy) t.X += dx;
+                else t.Y += dy;
                 if (++safety > hardSafety) break;
             }
-            placed.Add(n);
+            targets[n] = t;
+            placed.Add(t);
         }
 
-        // 4) DB 저장 (위치 + 크기)
-        foreach (var n in notes) _db.UpdateNote(n);
+        // 4) 애니메이션: 현재 → 목표 (300ms, ease-out cubic)
+        var start = notes.ToDictionary(n => n, n => (n.X, n.Y, n.Width, n.Height));
+        var sw = Stopwatch.StartNew();
+        var duration = TimeSpan.FromMilliseconds(300);
+        _bulkSnapTimer?.Stop();
+        _bulkSnapTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        _bulkSnapTimer.Tick += (_, _) =>
+        {
+            var prog = Math.Min(1.0, sw.Elapsed.TotalMilliseconds / duration.TotalMilliseconds);
+            var eased = 1 - Math.Pow(1 - prog, 3); // ease-out cubic
+            foreach (var n in notes)
+            {
+                var s = start[n];
+                var tg = targets[n];
+                n.X = s.X + (tg.X - s.X) * eased;
+                n.Y = s.Y + (tg.Y - s.Y) * eased;
+                n.Width = s.Width + (tg.W - s.Width) * eased;
+                n.Height = s.Height + (tg.H - s.Height) * eased;
+            }
+            if (prog >= 1.0)
+            {
+                _bulkSnapTimer!.Stop();
+                // 부동소수 오차 방지를 위해 마지막에 정확한 격자값으로 스냅 + DB 저장
+                foreach (var n in notes)
+                {
+                    var tg = targets[n];
+                    n.X = tg.X; n.Y = tg.Y;
+                    n.Width = tg.W; n.Height = tg.H;
+                    _db.UpdateNote(n);
+                }
+            }
+        };
+        _bulkSnapTimer.Start();
     }
 
-    private static bool Overlaps(NoteItem a, NoteItem b) =>
-        a.X < b.X + b.Width && a.X + a.Width > b.X
-     && a.Y < b.Y + b.Height && a.Y + a.Height > b.Y;
+    private static bool RectOverlaps(double ax, double ay, double aw, double ah,
+                                     double bx, double by, double bw, double bh) =>
+        ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 
     /// <summary>현재 노트북에서 from을 기준으로 지정 방향에서 가장 가까운 텍스트 노트 반환.</summary>
     public NoteItem? FindNeighborNote(NoteItem from, string direction)
