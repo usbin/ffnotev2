@@ -160,15 +160,14 @@ public partial class MainViewModel : ObservableObject
         _bulkSnapTimer.Tick += (_, _) =>
         {
             var prog = Math.Min(1.0, sw.Elapsed.TotalMilliseconds / duration.TotalMilliseconds);
-            var eased = 1 - Math.Pow(1 - prog, 3); // ease-out cubic
             foreach (var n in notes)
             {
                 var s = start[n];
                 var tg = targets[n];
-                n.X = s.X + (tg.X - s.X) * eased;
-                n.Y = s.Y + (tg.Y - s.Y) * eased;
-                n.Width = s.Width + (tg.W - s.Width) * eased;
-                n.Height = s.Height + (tg.H - s.Height) * eased;
+                n.X = s.X + (tg.X - s.X) * prog;
+                n.Y = s.Y + (tg.Y - s.Y) * prog;
+                n.Width = s.Width + (tg.W - s.Width) * prog;
+                n.Height = s.Height + (tg.H - s.Height) * prog;
             }
             if (prog >= 1.0)
             {
