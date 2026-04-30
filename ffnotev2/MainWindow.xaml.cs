@@ -304,19 +304,32 @@ public partial class MainWindow : Window
         };
         if (dxUnit == 0 && dyUnit == 0) return false;
 
-        var sel = App.MainVM.SelectedNotes.ToList();
-        if (sel.Count == 0) return false;
+        var selNotes = App.MainVM.SelectedNotes.ToList();
+        var selGroups = App.MainVM.SelectedGroups.ToList();
+        if (selNotes.Count == 0 && selGroups.Count == 0) return false;
+
+        // 그룹의 멤버(노트·하위그룹)도 같이 이동. 중복 제거.
+        var notesToMove = new HashSet<Models.NoteItem>(selNotes);
+        var groupsToMove = new HashSet<Models.NoteGroup>(selGroups);
+        foreach (var g in selGroups)
+        {
+            var (mNotes, mGroups) = App.MainVM.GetMembersOf(g);
+            foreach (var n in mNotes) notesToMove.Add(n);
+            foreach (var sg in mGroups) groupsToMove.Add(sg);
+        }
 
         var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
         double dx, dy;
         if (shift)
         {
-            // 격자 정렬 이동: 첫 노트를 기준으로 격자에 맞도록 dx/dy 계산.
-            // 모두 같은 Δ를 적용하여 다중 선택 시에도 노트 간 상대 위치 유지
+            // 격자 정렬 이동: pivot 기준으로 격자에 맞도록 dx/dy 계산.
+            // 모두 같은 Δ를 적용하여 다중 선택 시에도 상대 위치 유지.
+            // 그룹 선택 시 첫 그룹을, 노트만 선택 시 첫 노트를 pivot으로 사용.
             const double G = ViewModels.MainViewModel.GridSize;
-            var pivot = sel[0];
-            dx = dxUnit != 0 ? (Math.Floor(pivot.X / G) * G + dxUnit * G - pivot.X) : 0;
-            dy = dyUnit != 0 ? (Math.Floor(pivot.Y / G) * G + dyUnit * G - pivot.Y) : 0;
+            double pivotX = selGroups.Count > 0 ? selGroups[0].X : selNotes[0].X;
+            double pivotY = selGroups.Count > 0 ? selGroups[0].Y : selNotes[0].Y;
+            dx = dxUnit != 0 ? (Math.Floor(pivotX / G) * G + dxUnit * G - pivotX) : 0;
+            dy = dyUnit != 0 ? (Math.Floor(pivotY / G) * G + dyUnit * G - pivotY) : 0;
         }
         else
         {
@@ -325,7 +338,7 @@ public partial class MainWindow : Window
             dy = dyUnit;
         }
         var changes = new List<(Services.ItemSnapshot Old, Services.ItemSnapshot New)>();
-        foreach (var n in sel)
+        foreach (var n in notesToMove)
         {
             var ox = n.X; var oy = n.Y;
             n.X += dx;
@@ -334,6 +347,16 @@ public partial class MainWindow : Window
             if (n.X != ox || n.Y != oy)
                 changes.Add((new Services.ItemSnapshot(n, ox, oy, n.Width, n.Height),
                              new Services.ItemSnapshot(n, n.X, n.Y, n.Width, n.Height)));
+        }
+        foreach (var g in groupsToMove)
+        {
+            var ox = g.X; var oy = g.Y;
+            g.X += dx;
+            g.Y += dy;
+            App.MainVM.UpdateGroupPosition(g);
+            if (g.X != ox || g.Y != oy)
+                changes.Add((new Services.ItemSnapshot(g, ox, oy, g.Width, g.Height),
+                             new Services.ItemSnapshot(g, g.X, g.Y, g.Width, g.Height)));
         }
         if (changes.Count > 0) App.MainVM.RecordTransform(changes);
         e.Handled = true;
@@ -555,6 +578,15 @@ public partial class MainWindow : Window
         // 마우스 지점 앵커 유지: 같은 world 좌표가 동일 화면 위치에 오도록 평행이동 보정
         CanvasTranslate.X = mouse.X - worldX * newScale;
         CanvasTranslate.Y = mouse.Y - worldY * newScale;
+
+        // 줌 후 팬 앵커 갱신: 줌으로 바뀐 Translate를 기준점으로 재설정해
+        // 이어서 드래그할 때 위치가 튀지 않도록 함
+        if (_panButton is not null)
+        {
+            _panStart = mouse;
+            _panStartTx = CanvasTranslate.X;
+            _panStartTy = CanvasTranslate.Y;
+        }
 
         ZoomLabel.Text = $"{Math.Round(newScale * 100)}%";
         e.Handled = true;
