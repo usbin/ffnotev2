@@ -2,13 +2,16 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="그룹 삭제" SizeToContent="WidthAndHeight"
-        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        FocusManager.FocusedElement="{Binding ElementName=DeleteAllButton}">
     <StackPanel Margin="20" MinWidth="320">
         <TextBlock x:Name="MessageText" TextWrapping="Wrap" Margin="0,0,0,16" FontSize="13"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="일괄 삭제" Width="100" Margin="0,0,8,0" Click="DeleteAll_Click"/>
-            <Button Content="그룹만 삭제" Width="100" Margin="0,0,8,0" Click="DeleteGroupOnly_Click"/>
-            <Button Content="취소" Width="80" IsCancel="True" Click="Cancel_Click"/>
+            <Button x:Name="DeleteAllButton" Content="일괄 삭제" Width="100" Margin="0,0,8,0"
+                    IsDefault="True" Click="DeleteAll_Click"/>
+            <Button x:Name="DeleteGroupOnlyButton" Content="그룹만 삭제" Width="100" Margin="0,0,8,0"
+                    Click="DeleteGroupOnly_Click"/>
+            <Button x:Name="CancelButton" Content="취소" Width="80" IsCancel="True" Click="Cancel_Click"/>
         </StackPanel>
     </StackPanel>
 </Window>

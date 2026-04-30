@@ -4,7 +4,9 @@
              xmlns:conv="clr-namespace:ffnotev2.Converters"
              Width="{Binding Width}" Height="{Binding Height}"
              Loaded="UserControl_Loaded"
-             PreviewMouseLeftButtonDown="UserControl_PreviewMouseLeftButtonDown">
+             PreviewMouseLeftButtonDown="UserControl_PreviewMouseLeftButtonDown"
+             PreviewMouseMove="UserControl_PreviewMouseMove"
+             PreviewMouseLeftButtonUp="UserControl_PreviewMouseLeftButtonUp">
     <UserControl.Resources>
         <conv:NoteTypeToVisibilityConverter x:Key="TypeVis"/>
         <conv:PathToImageConverter x:Key="PathToImage"/>
@@ -41,15 +43,12 @@
             </Border>
 
             <!-- 콘텐츠 영역. 노트가 선택된 상태(IsSelected=true)면 본문 어디서든 드래그 가능.
-                 더블클릭(편집 진입), 편집 중 캐럿 이동, 하이퍼링크 클릭은 그대로 동작 — Body* 핸들러가
-                 첫 클릭(미선택→선택 전환)·이중 클릭·편집 중 케이스를 통과시킴.
-                 Background=Transparent 필수 — 텍스트 글자 사이 여백이나 짧은 텍스트 아래 공간 같은
-                 비어있는 영역도 hit-test되도록 (없으면 자식 hit-test 실패 → MouseDown 자체가 안 발화) -->
+                 본문 드래그는 UserControl 레벨의 Preview 이벤트에서 처리 — body Grid의
+                 hit-test/이벤트 라우팅 변수와 무관하게 OriginalSource 검사로 동작.
+                 Background=Transparent는 cursor 표시 + 일관된 hit-test 영역 확보용. -->
             <Grid Grid.Row="1"
-                  Background="Transparent"
-                  MouseLeftButtonDown="BodyDrag_MouseLeftButtonDown"
-                  MouseMove="BodyDrag_MouseMove"
-                  MouseLeftButtonUp="BodyDrag_MouseLeftButtonUp">
+                  x:Name="BodyArea"
+                  Background="Transparent">
                 <Grid.Style>
                     <Style TargetType="Grid">
                         <Style.Triggers>

@@ -3,6 +3,8 @@
 
 ## 최근 변경 (2026-04-30)
 
+- **본문 드래그를 UserControl Preview 레벨로 이동 (v1.0.6)**: v1.0.5의 body Grid Background=Transparent 추가만으로는 사용자 환경에서 BodyDrag MouseLeftButtonDown이 발화하지 않는 케이스 발견. 원인 정확히 특정 못 했지만(이벤트 라우팅/hit-test 변수), Preview 이벤트는 OriginalSource까지 무조건 tunneling하므로 컨테이너 hit-test 상태와 무관하게 발화 보장. body Grid의 BodyDrag_* 핸들러 제거하고 `UserControl_PreviewMouseLeftButtonDown/Move/Up`로 통합. body Grid에 `x:Name="BodyArea"`를 부여 + `IsOnBodyArea(visual)` 헬퍼로 OriginalSource가 본문 자손인지 검사 → 타이틀바·리사이즈 Thumb 클릭은 자동 제외(BodyArea 외부). 캡처는 UserControl 자신이 잡아 후속 Move/Up 라우팅 보장.
+- **GroupDeleteDialog 키보드 포커스 (v1.0.6)**: 다이얼로그 열릴 때 "일괄 삭제" 버튼에 자동 포커스(`FocusManager.FocusedElement`) + `IsDefault=true`로 Enter 시 일괄 삭제. Tab으로 그룹만 삭제 / 취소 사이 이동.
 - **본문 드래그 hit-test 수정 (v1.0.5)**: 본문 Grid에 `Background="Transparent"` 추가. 빈 영역(텍스트 글자 사이 여백, 짧은 텍스트 아래 공간 등)이 hit-test되지 않아 `BodyDrag_MouseLeftButtonDown`이 발화 안 되던 버그. 호버 시 SizeAll 커서는 보이지만(`Cursor` 속성 상속) 마우스 이벤트는 발화 안 됐음.
 - **그룹·다중 노트 드래그 격자 어긋남 수정 (v1.0.5)**: 그룹 이동 시 멤버 노트가 한 칸씩 튀던 버그. 원인은 `MaybeSnap`을 그룹과 각 멤버에 **독립 적용**한 것 — 시작 위치가 격자 비정렬이면 각자 다른 격자로 라운딩돼 서로 다른 delta가 적용됨. **leader 기반 snap delta** 패턴으로 수정: 그룹 본인(또는 다중 노트 드래그 시 클릭한 노트 Item)을 leader로 한 번만 snap → 그 결과 actual delta를 멤버 전체에 동일 적용 → 상대 위치 보존. `GroupBoxControl.GroupBox_MouseMove`와 `DraggableNoteControl.TitleBar_MouseMove` 둘 다 같은 패턴으로 수정.
 - **선택된 노트 본문 어디서든 드래그**: `IsSelected=true`인 노트는 타이틀바뿐 아니라 본문(Grid Grid.Row="1") 클릭 후 드래그도 이동을 발화. `BodyDrag_MouseLeftButtonDown/Move/Up`가 4px 임계값 기반으로 클릭/드래그를 구분 — Down 시점엔 캡처/Handled 안 해서 더블클릭 편집 진입과 Hyperlink 활성화는 그대로. 첫 클릭으로 선택 전환된 경우는 그 클릭으로 드래그 X(`_clickStartedSelected`로 사전 상태 보존). 편집 중엔 비활성. 선택 시 본문 커서 SizeAll (DataTrigger).
