@@ -85,6 +85,25 @@ public partial class MainWindow : Window
             }
         }
 
+        // Ctrl+Z 언두 / Ctrl+Y 또는 Ctrl+Shift+Z 리두 (편집 중인 TextBox는 자체 undo 사용)
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control
+            && e.OriginalSource is not TextBox)
+        {
+            var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+            if (e.Key == Key.Z && !shift)
+            {
+                App.Undo.Undo();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.Y || (e.Key == Key.Z && shift))
+            {
+                App.Undo.Redo();
+                e.Handled = true;
+                return;
+            }
+        }
+
         // Ctrl+G: 선택 노트로 그룹 만들기. Ctrl+Shift+G: 선택된 그룹 해제
         if (e.Key == Key.G && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control
             && e.OriginalSource is not TextBox)
@@ -285,12 +304,18 @@ public partial class MainWindow : Window
             dx = dxUnit;
             dy = dyUnit;
         }
+        var changes = new List<(Services.ItemSnapshot Old, Services.ItemSnapshot New)>();
         foreach (var n in sel)
         {
+            var ox = n.X; var oy = n.Y;
             n.X += dx;
             n.Y += dy;
             App.MainVM.UpdateNotePosition(n);
+            if (n.X != ox || n.Y != oy)
+                changes.Add((new Services.ItemSnapshot(n, ox, oy, n.Width, n.Height),
+                             new Services.ItemSnapshot(n, n.X, n.Y, n.Width, n.Height)));
         }
+        if (changes.Count > 0) App.MainVM.RecordTransform(changes);
         e.Handled = true;
         return true;
     }

@@ -57,6 +57,17 @@
 - [x] **노트북 빠른 전환 단축키** — `AppSettings.NotebookSwitches[10]`(기본 Ctrl+1..Ctrl+0). `HotkeyBinding.MatchesLocal`로 로컬 키 매칭. `MainWindow.TryHandleNotebookSwitch`가 인덱스 매칭 시 `CurrentNotebook = Notebooks[i]`. 사용자 정의 가능
 - [x] **노트 미세/큰 단위 이동 단축키** — `MainWindow.TryHandleNoteNudge`. 비편집 + 선택 노트(다중 가능)에 대해 Ctrl+화살표=1px, Ctrl+Shift+화살표=10px. 즉시 DB 저장
 - [x] **단축키 설정창 통합** — `HotkeySettingsDialog`를 ScrollViewer + ItemsControl로 확장. 글로벌 3개 + 노트북 10개 모두 캡처/저장. 변경 불가 단축키(Ctrl+화살표, Alt+화살표, Ctrl+G, 마키 등)는 참고용으로 표시. 트레이 메뉴 "단축키 설정..."에서 호출
+- [x] **빈 캔버스 클릭 시 편집 포커스 해제** — CanvasArea 좌클릭 마키 시작 시점에 `FocusCanvas()` 호출 → 편집 중이던 TextBox LostFocus(저장)
+- [x] **Ctrl+Shift+화살표 격자 정렬 이동** — 첫 선택 노트 기준 격자에 맞도록 dx/dy 계산 후 모든 선택 노트에 같은 Δ 적용. 비격자 위치도 격자선에 정렬되며 한 칸 이동, 다중 선택 시 상대 위치 유지
+- [x] **Delete 키 선택 노트 삭제** — 비편집 + 선택 노트들 일괄 삭제 (Undo 가능)
+- [x] **Ctrl+C 시스템 클립보드 복사** — Text/Link → `SetText`, Image → `SetImage(BitmapSource)`. 다른 앱과 호환. 다중 선택 시 첫 노트만
+- [x] **Undo/Redo (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z)** — `UndoService`(LinkedList LIFO, max 200), `IUndoableAction` + 5종 액션:
+   - `TransformItemsAction`(이동/리사이즈/그룹 동기, NoteItem+NoteGroup 혼합)
+   - `AddNoteAction`/`DeleteNoteAction`/`AddGroupAction`/`DeleteGroupAction`
+   - 콜사이트: 드래그/리사이즈 종료, Ctrl+화살표 nudge, Add/Delete 메서드 모두 push
+   - 이미지 노트 삭제 시 파일은 즉시 삭제 안 함(Undo 복원 가능). 노트북 삭제 시 일괄 정리
+   - 편집 중 TextBox에서는 Ctrl+Z를 가로채지 않음 (TextBox 자체 undo 사용)
+   - BulkSnap, 텍스트 Content 변경은 미적용 (후속)
 - [x] **그룹 (NoteGroup)** — DB 테이블 `NoteGroups`(Id/NotebookId/X/Y/W/H). 멤버십은 동적(bbox 완전 내포). 그룹 점선 사각형 시각, Stroke만 hit-test 되어 내부 노트 클릭/마키 통과. 드래그 시작 시 `GetMembersOf`로 멤버 스냅샷, 그룹+멤버 모두 같은 Δ로 이동. Ctrl+G로 선택 노트 bbox+10px 패딩으로 그룹 생성, Ctrl+Shift+G/우클릭 메뉴로 해제. 노트와 그룹이 RenderTransform을 공유하도록 `Grid CanvasContent`로 묶음 — 그룹은 노트 뒤, 마키는 노트와 그룹 모두 인터섹트로 선택. 스냅 토글에 따라 그룹 드래그도 격자 정렬
 - [x] **일괄 스냅 (B, 애니메이션)** — `MainViewModel.BulkSnap()`. 전체 노트 좌상단 floor + 사이즈 ceil. (Y,X) 오름차순 정렬 후 충돌 시 dx/dy 최소 거리 계산해 짧은 방향 우선 시프트 (단순 우측 wrap 방식보다 노트가 멀리 사라지지 않음). DispatcherTimer 16ms × 100ms 선형 보간으로 이동/리사이즈 애니메이션, 완료 후 DB 저장. 우하단 ⊟ 버튼으로 발동
 - [x] **WPF 포커스 사각형 제거** — ItemsControl/ItemContainer/CanvasArea의 `FocusVisualStyle="{x:Null}"`

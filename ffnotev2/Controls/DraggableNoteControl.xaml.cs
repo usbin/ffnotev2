@@ -95,8 +95,16 @@ public partial class DraggableNoteControl : UserControl
         if (!_isDragging) return;
         _isDragging = false;
         ((UIElement)sender).ReleaseMouseCapture();
+        // 변경된 항목만 Undo 스택에 등록 (실제 위치가 바뀐 경우만)
+        var changes = _dragGroup
+            .Where(g => g.Item.X != g.StartX || g.Item.Y != g.StartY)
+            .Select(g => (
+                Old: new Services.ItemSnapshot(g.Item, g.StartX, g.StartY, g.Item.Width, g.Item.Height),
+                New: new Services.ItemSnapshot(g.Item, g.Item.X, g.Item.Y, g.Item.Width, g.Item.Height)))
+            .ToList();
         foreach (var (it, _, _) in _dragGroup)
             App.MainVM.UpdateNotePosition(it);
+        if (changes.Count > 0) App.MainVM.RecordTransform(changes);
         _dragGroup.Clear();
     }
 
@@ -236,8 +244,16 @@ public partial class DraggableNoteControl : UserControl
 
     private void ResizeThumb_DragCompleted(object sender, DragCompletedEventArgs e)
     {
+        var changes = _resizeGroup
+            .Where(t => t.Item.X != t.StartX || t.Item.Y != t.StartY
+                     || t.Item.Width != t.StartW || t.Item.Height != t.StartH)
+            .Select(t => (
+                Old: new Services.ItemSnapshot(t.Item, t.StartX, t.StartY, t.StartW, t.StartH),
+                New: new Services.ItemSnapshot(t.Item, t.Item.X, t.Item.Y, t.Item.Width, t.Item.Height)))
+            .ToList();
         foreach (var (it, _, _, _, _) in _resizeGroup)
             App.MainVM.UpdateNoteContent(it);
+        if (changes.Count > 0) App.MainVM.RecordTransform(changes);
         _resizeGroup.Clear();
     }
 

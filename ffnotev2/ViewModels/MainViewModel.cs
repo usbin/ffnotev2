@@ -69,14 +69,17 @@ public partial class MainViewModel : ObservableObject
         };
         g.Id = _db.AddGroup(g);
         CurrentNotebook.Groups.Add(g);
+        App.Undo?.Push(new AddGroupAction(g, CurrentNotebook, _db));
         return g;
     }
 
     public void DeleteGroup(NoteGroup group)
     {
         ArgumentNullException.ThrowIfNull(group);
+        if (CurrentNotebook is null) return;
         _db.DeleteGroup(group.Id);
-        CurrentNotebook?.Groups.Remove(group);
+        CurrentNotebook.Groups.Remove(group);
+        App.Undo?.Push(new DeleteGroupAction(group, CurrentNotebook, _db));
     }
 
     public void UpdateGroupPosition(NoteGroup group)
@@ -357,6 +360,7 @@ public partial class MainViewModel : ObservableObject
         };
         note.Id = _db.AddNote(note);
         CurrentNotebook.Notes.Add(note);
+        App.Undo?.Push(new AddNoteAction(note, CurrentNotebook, _db));
         return note;
     }
 
@@ -375,6 +379,7 @@ public partial class MainViewModel : ObservableObject
         };
         note.Id = _db.AddNote(note);
         CurrentNotebook.Notes.Add(note);
+        App.Undo?.Push(new AddNoteAction(note, CurrentNotebook, _db));
         return note;
     }
 
@@ -393,8 +398,13 @@ public partial class MainViewModel : ObservableObject
         };
         note.Id = _db.AddNote(note);
         CurrentNotebook.Notes.Add(note);
+        App.Undo?.Push(new AddNoteAction(note, CurrentNotebook, _db));
         return note;
     }
+
+    /// <summary>드래그/리사이즈/nudge 등 위치·크기 변경을 Undo 스택에 기록.</summary>
+    public void RecordTransform(IEnumerable<(ItemSnapshot Old, ItemSnapshot New)> items)
+        => App.Undo?.Push(new TransformItemsAction(items, _db));
 
     public void UpdateNoteContent(NoteItem note)
     {
@@ -411,10 +421,11 @@ public partial class MainViewModel : ObservableObject
     public void DeleteNote(NoteItem note)
     {
         ArgumentNullException.ThrowIfNull(note);
-        if (note.Type == NoteType.Image)
-            TryDeleteFile(note.Content);
+        if (CurrentNotebook is null) return;
+        // 이미지 파일은 즉시 삭제하지 않음 (undo로 복원 가능해야 함). 노트북 삭제 시에만 일괄 정리.
         _db.DeleteNote(note.Id);
-        CurrentNotebook?.Notes.Remove(note);
+        CurrentNotebook.Notes.Remove(note);
+        App.Undo?.Push(new DeleteNoteAction(note, CurrentNotebook, _db));
     }
 
     /// <summary>선택된 노트(첫 1개)를 시스템 클립보드에 복사. 텍스트/링크 → SetText, 이미지 → SetImage.</summary>

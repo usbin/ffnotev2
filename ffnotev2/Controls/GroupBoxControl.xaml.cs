@@ -91,9 +91,28 @@ public partial class GroupBoxControl : UserControl
         if (!_isDragging) return;
         _isDragging = false;
         ((UIElement)sender).ReleaseMouseCapture();
+
+        // 변경된 항목만 Undo 스택에 등록
+        var changes = new List<(Services.ItemSnapshot Old, Services.ItemSnapshot New)>();
+        foreach (var (g, sx, sy) in _groupSnapshot)
+        {
+            if (g.X != sx || g.Y != sy)
+                changes.Add((new Services.ItemSnapshot(g, sx, sy, g.Width, g.Height),
+                             new Services.ItemSnapshot(g, g.X, g.Y, g.Width, g.Height)));
+        }
+        foreach (var (n, sx, sy) in _noteSnapshot)
+        {
+            if (n.X != sx || n.Y != sy)
+                changes.Add((new Services.ItemSnapshot(n, sx, sy, n.Width, n.Height),
+                             new Services.ItemSnapshot(n, n.X, n.Y, n.Width, n.Height)));
+        }
+
         // DB 저장
         foreach (var (g, _, _) in _groupSnapshot) App.MainVM.UpdateGroupPosition(g);
         foreach (var (n, _, _) in _noteSnapshot) App.MainVM.UpdateNotePosition(n);
+
+        if (changes.Count > 0) App.MainVM.RecordTransform(changes);
+
         _groupSnapshot.Clear();
         _noteSnapshot.Clear();
     }

@@ -20,6 +20,7 @@
 | Services/HotkeyService.cs | `HotkeyService` | `Initialize(Window)`, `Register(modifiers, vk, callback)`, `UnregisterAll()` — Win32 RegisterHotKey 래퍼 (LibraryImport source-generated P/Invoke) |
 | Services/SettingsService.cs | `SettingsService` | `%APPDATA%\ffnotev2\settings.json` 로드/저장. `AppSettings` 노출 (HotkeyBinding 3개) |
 | Services/AutoStartService.cs | `AutoStartService` | `HKCU\...\Run\ffnote` 레지스트리 R/W. `Enable()`/`Disable()`/`IsEnabled` |
+| Services/UndoService.cs | `UndoService` + 액션 클래스 | LinkedList 기반 LIFO Undo/Redo (max 200). 액션: `TransformItemsAction`(이동/리사이즈/그룹 동기 이동, NoteItem+NoteGroup 혼합), `AddNoteAction`/`DeleteNoteAction`, `AddGroupAction`/`DeleteGroupAction`. `App.Undo`로 전역 접근 |
 
 ## 뷰모델
 
@@ -57,8 +58,10 @@
 
 ### 기본 단축키 (변경 불가)
 
-- 노트 이동: `Ctrl+화살표` 1px / `Ctrl+Shift+화살표` 10px / `화살표` 인접 노트로 선택 이동
+- 노트 이동: `Ctrl+화살표` 1px / `Ctrl+Shift+화살표` 격자 정렬 후 10px / `화살표` 인접 노트로 선택 이동
 - 편집: `Enter` 편집 시작 / `Esc` 편집/선택 종료 / `Alt+화살표`(편집 중) 인접 노트로 편집 이동 / 더블클릭
 - 그룹: `Ctrl+G` 만들기 / `Ctrl+Shift+G` 해제
-- 선택: 빈 캔버스 좌클릭 드래그(마키) / `Shift+클릭` 토글
-- 캔버스: 휠클릭/우클릭 드래그(팬) / `Ctrl+휠`(줌) / `Ctrl+V`(붙여넣기)
+- 선택/삭제: 빈 캔버스 좌클릭 드래그(마키) / `Shift+클릭` 토글 / `Delete` 선택 노트 삭제
+- 클립보드: `Ctrl+C` 선택 노트 복사 (Text/Link → SetText, Image → SetImage) / `Ctrl+V` 붙여넣기
+- 실행 취소: `Ctrl+Z` Undo / `Ctrl+Y` 또는 `Ctrl+Shift+Z` Redo
+- 캔버스: 휠클릭/우클릭 드래그(팬) / `Ctrl+휠`(줌)

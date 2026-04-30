@@ -21,6 +21,7 @@ public partial class App : Application
 
     public static MainViewModel MainVM { get; private set; } = null!;
     public static OverlayViewModel OverlayVM { get; private set; } = null!;
+    public static UndoService Undo { get; private set; } = null!;
 
     public GameDetectionService GameDetectionService { get; private set; } = null!;
     public SettingsService SettingsService { get; private set; } = null!;
@@ -85,6 +86,7 @@ public partial class App : Application
         AutoStart = new AutoStartService();
         SyncAutoStartOnStartup();
         GameDetectionService = new GameDetectionService();
+        Undo = new UndoService();
         MainVM = new MainViewModel(_db, GameDetectionService);
         OverlayVM = new OverlayViewModel(MainVM, SettingsService);
 
