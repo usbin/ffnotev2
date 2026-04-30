@@ -16,6 +16,9 @@ public partial class DraggableNoteControl : UserControl
     private Point _dragStart;
     // 일괄 드래그를 위해 선택된 모든 노트의 시작 좌표 캡처
     private List<(NoteItem Item, double StartX, double StartY)> _dragGroup = new();
+    // 다중 선택에 그룹이 포함된 경우: 선택된 그룹+멤버하위그룹 / 멤버노트 중 _dragGroup에 없는 것
+    private List<(NoteGroup Group, double StartX, double StartY)> _groupDragSnap = new();
+    private List<(NoteItem Item, double StartX, double StartY)> _memberNoteDragSnap = new();
     // 본문 드래그 후보 상태: MouseDown 시 set → MouseMove에서 임계값 초과 시 실제 드래그로 승격
     private bool _bodyPotentialDrag;
     private Point _bodyDragStartScreen;
@@ -70,6 +73,44 @@ public partial class DraggableNoteControl : UserControl
         return null;
     }
 
+    // 드래그 시작 시 이동 대상 스냅샷 빌드.
+    // _dragGroup: 선택된 자유 노트(그룹 멤버 아닌 것) + 리더(항상 포함 — snap delta 계산용)
+    // _groupDragSnap: 선택된 그룹 + 그 멤버 하위그룹
+    // _memberNoteDragSnap: 그룹 멤버 노트 중 _dragGroup에 없는 것 (독립 선택 안 된 멤버)
+    private void BuildDragSnapshots()
+    {
+        if (Item is null) return;
+        var selNotes  = App.MainVM.SelectedNotes.ToList();
+        var selGroups = App.MainVM.SelectedGroups.ToList();
+
+        var seenG = new HashSet<Models.NoteGroup>();
+        _groupDragSnap = new();
+        var memberNotes = new HashSet<NoteItem>();
+
+        foreach (var g in selGroups)
+        {
+            if (!seenG.Add(g)) continue;
+            _groupDragSnap.Add((g, g.X, g.Y));
+            var (mNotes, mGroups) = App.MainVM.GetMembersOf(g);
+            foreach (var sg in mGroups) if (seenG.Add(sg)) _groupDragSnap.Add((sg, sg.X, sg.Y));
+            foreach (var n in mNotes) memberNotes.Add(n);
+        }
+
+        // 자유 노트: 선택됐지만 그룹 멤버 아닌 것 + 리더(항상 포함)
+        var noteList = selNotes.Contains(Item) ? selNotes : new List<NoteItem> { Item };
+        _dragGroup = noteList
+            .Where(n => !memberNotes.Contains(n) || ReferenceEquals(n, Item))
+            .Select(n => (n, n.X, n.Y)).ToList();
+        if (!_dragGroup.Any(g => ReferenceEquals(g.Item, Item)))
+            _dragGroup.Insert(0, (Item, Item.X, Item.Y));
+
+        // 그룹 멤버 노트 중 _dragGroup에 없는 것
+        var inDrag = new HashSet<NoteItem>(_dragGroup.Select(g => g.Item));
+        _memberNoteDragSnap = memberNotes
+            .Where(n => !inDrag.Contains(n))
+            .Select(n => (n, n.X, n.Y)).ToList();
+    }
+
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (Item is null) return;
@@ -78,11 +119,7 @@ public partial class DraggableNoteControl : UserControl
 
         _isDragging = true;
         _dragStart = e.GetPosition(canvas);
-
-        // 선택된 노트가 있으면 모두 함께 이동, 없거나 이 노트가 선택 안 됐으면 이 노트만
-        var group = App.MainVM.SelectedNotes.ToList();
-        if (!group.Contains(Item)) group = new List<NoteItem> { Item };
-        _dragGroup = group.Select(n => (n, n.X, n.Y)).ToList();
+        BuildDragSnapshots();
 
         ((UIElement)sender).CaptureMouse();
         e.Handled = true;
@@ -113,6 +150,8 @@ public partial class DraggableNoteControl : UserControl
             it.X = sx + actualDx;
             it.Y = sy + actualDy;
         }
+        foreach (var (g, sx, sy) in _groupDragSnap)  { g.X = sx + actualDx; g.Y = sy + actualDy; }
+        foreach (var (n, sx, sy) in _memberNoteDragSnap) { n.X = sx + actualDx; n.Y = sy + actualDy; }
     }
 
     private void TitleBar_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -121,16 +160,28 @@ public partial class DraggableNoteControl : UserControl
         _isDragging = false;
         ((UIElement)sender).ReleaseMouseCapture();
         // 변경된 항목만 Undo 스택에 등록 (실제 위치가 바뀐 경우만)
-        var changes = _dragGroup
-            .Where(g => g.Item.X != g.StartX || g.Item.Y != g.StartY)
-            .Select(g => (
-                Old: new Services.ItemSnapshot(g.Item, g.StartX, g.StartY, g.Item.Width, g.Item.Height),
-                New: new Services.ItemSnapshot(g.Item, g.Item.X, g.Item.Y, g.Item.Width, g.Item.Height)))
-            .ToList();
-        foreach (var (it, _, _) in _dragGroup)
-            App.MainVM.UpdateNotePosition(it);
+        var changes = new List<(Services.ItemSnapshot Old, Services.ItemSnapshot New)>();
+        foreach (var (it, sx, sy) in _dragGroup)
+            if (it.X != sx || it.Y != sy)
+                changes.Add((new Services.ItemSnapshot(it, sx, sy, it.Width, it.Height),
+                             new Services.ItemSnapshot(it, it.X, it.Y, it.Width, it.Height)));
+        foreach (var (g, sx, sy) in _groupDragSnap)
+            if (g.X != sx || g.Y != sy)
+                changes.Add((new Services.ItemSnapshot(g, sx, sy, g.Width, g.Height),
+                             new Services.ItemSnapshot(g, g.X, g.Y, g.Width, g.Height)));
+        foreach (var (n, sx, sy) in _memberNoteDragSnap)
+            if (n.X != sx || n.Y != sy)
+                changes.Add((new Services.ItemSnapshot(n, sx, sy, n.Width, n.Height),
+                             new Services.ItemSnapshot(n, n.X, n.Y, n.Width, n.Height)));
+
+        foreach (var (it, _, _) in _dragGroup)          App.MainVM.UpdateNotePosition(it);
+        foreach (var (g,  _, _) in _groupDragSnap)      App.MainVM.UpdateGroupPosition(g);
+        foreach (var (n,  _, _) in _memberNoteDragSnap) App.MainVM.UpdateNotePosition(n);
+
         if (changes.Count > 0) App.MainVM.RecordTransform(changes);
         _dragGroup.Clear();
+        _groupDragSnap.Clear();
+        _memberNoteDragSnap.Clear();
     }
 
     // 본문 영역 클릭 여부 — OriginalSource에서 BodyArea(콘텐츠 Grid) 부모로 거슬러 올라가 확인.
@@ -223,9 +274,7 @@ public partial class DraggableNoteControl : UserControl
             _bodyPotentialDrag = false;
             _isDragging = true;
             _dragStart = _bodyDragStartScreen;
-            var group = App.MainVM.SelectedNotes.ToList();
-            if (!group.Contains(Item!)) group = new List<NoteItem> { Item! };
-            _dragGroup = group.Select(n => (n, n.X, n.Y)).ToList();
+            BuildDragSnapshots();
             // UserControl 자신이 캡처를 잡음 — 후속 MouseMove/Up이 모두 이 컨트롤로 라우팅
             ((UIElement)sender).CaptureMouse();
             // 드래그 중 커서를 SizeAll로 강제 — UserControl.Cursor가 기본값이라 캡처 중에는

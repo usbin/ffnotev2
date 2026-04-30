@@ -54,11 +54,30 @@ public partial class GroupBoxControl : UserControl
         _isDragging = true;
         _dragStart = e.GetPosition(canvas);
 
-        // 멤버 스냅샷 (드래그 시작 시점 기준 bbox 내포)
-        var (notes, groups) = App.MainVM.GetMembersOf(Group);
+        // 스냅샷: Group을 leader(index 0)로 고정 후, 모든 선택 그룹+멤버하위그룹 수집.
+        // 선택된 자유 노트(그룹 멤버 아닌 것)도 포함해 다중 선택 일괄 이동 지원.
         _groupSnapshot = new List<(NoteGroup, double, double)> { (Group, Group.X, Group.Y) };
-        foreach (var sub in groups) _groupSnapshot.Add((sub, sub.X, sub.Y));
-        _noteSnapshot = notes.Select(n => (n, n.X, n.Y)).ToList();
+        var seenG = new HashSet<NoteGroup> { Group };
+        var allMemberNotes = new HashSet<NoteItem>();
+
+        foreach (var g in App.MainVM.SelectedGroups)
+        {
+            if (!seenG.Add(g)) continue;
+            _groupSnapshot.Add((g, g.X, g.Y));
+        }
+        // 모든 선택 그룹의 멤버 수집 (seenG 기준 중복 제거)
+        foreach (var (g, _, _) in _groupSnapshot.ToList())
+        {
+            var (mNotes, mGroups) = App.MainVM.GetMembersOf(g);
+            foreach (var sub in mGroups) if (seenG.Add(sub)) _groupSnapshot.Add((sub, sub.X, sub.Y));
+            foreach (var n in mNotes) allMemberNotes.Add(n);
+        }
+
+        // 노트 스냅샷: 멤버 노트 + 선택된 자유 노트 (그룹 멤버 아닌 것)
+        _noteSnapshot = allMemberNotes.Select(n => (n, n.X, n.Y)).ToList();
+        foreach (var n in App.MainVM.SelectedNotes)
+            if (!allMemberNotes.Contains(n))
+                _noteSnapshot.Add((n, n.X, n.Y));
 
         ((UIElement)sender).CaptureMouse();
         e.Handled = true;
