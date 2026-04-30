@@ -21,11 +21,18 @@ public partial class App : Application
     [STAThread]
     public static void Main(string[] args)
     {
-        VelopackApp.Build().Run();
+        // 업데이트 후 재시작 직후 1회 발화하는 OnRestarted 훅으로 플래그 set →
+        // OnStartup에서 메인 창 자동 표시 (사용자가 노트북을 연 상태에서 업데이트 트리거했으므로
+        // 완료 후 같은 컨텍스트로 복귀시켜 "조용히 끝나서 모르겠음" 혼동 회피)
+        VelopackApp.Build()
+            .OnRestarted(_ => _justUpdated = true)
+            .Run();
         var app = new App();
         app.InitializeComponent();
         app.Run();
     }
+
+    private static bool _justUpdated;
 
     // 사용자 단위로 식별되는 단일 인스턴스 가드용 이름. 한 사용자 환경에서 한 프로세스만 허용.
     private const string SingletonMutexName = "Local\\ffnotev2-singleton-{8B5C7E2F-3A4D-4E1F-9B6A-1C2D3E4F5A6B}";
@@ -118,6 +125,12 @@ public partial class App : Application
         // 게임 감지 시 메인+오버레이 자동 표시
         GameDetectionService.GameDetected += OnGameDetectedShowWindows;
         GameDetectionService.Start();
+
+        // 업데이트 후 재시작이면 메인 창을 자동으로 띄움
+        if (_justUpdated)
+        {
+            Dispatcher.BeginInvoke(new Action(ShowMain), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
     }
 
     private void OnGameDetectedShowWindows(object? sender, GameDetectedEventArgs e)

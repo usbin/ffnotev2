@@ -9,9 +9,13 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- 자동 업데이트 (Velopack) — 명시적 Main 진입점이 VelopackApp.Build().Run()을 먼저 호출 -->
-    <Version>1.0.2</Version>
-    <AssemblyVersion>1.0.2.0</AssemblyVersion>
-    <FileVersion>1.0.2.0</FileVersion>
+    <!-- Version만 정의하면 AssemblyVersion/FileVersion이 자동 파생됨.
+         CI에서 dotnet publish /p:Version=X.Y.Z 한 번으로 셋 다 일치하게 빌드된다.
+         (명시 시 /p:Version 오버라이드가 AssemblyVersion/FileVersion까지 미치지 못해
+         타이틀바가 옛 버전으로 표시되는 메타데이터 미스매치 발생) -->
+    <Version>1.0.0</Version>
+    <!-- 제품 버전(InformationalVersion)에 +{commit hash} 자동 부착 비활성화 — 깔끔히 "1.0.X"만 -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
