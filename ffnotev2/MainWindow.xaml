@@ -142,8 +142,20 @@
                 <StackPanel Orientation="Horizontal">
                     <ToggleButton IsChecked="{Binding CurrentNotebook.SnapEnabled, Mode=TwoWay}"
                                   Width="22" Height="20" Margin="0,0,8,0"
-                                  Background="Transparent" BorderThickness="0" Foreground="#FFCCCCCC"
+                                  BorderThickness="0"
                                   ToolTip="격자에 맞추기 (10px) — 노트북별 설정">
+                        <ToggleButton.Style>
+                            <Style TargetType="ToggleButton">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="#FFCCCCCC"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter Property="Background" Value="#FF5599FF"/>
+                                        <Setter Property="Foreground" Value="#FF111111"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ToggleButton.Style>
                         <ToggleButton.Content>
                             <TextBlock Text="⊞" FontSize="13"/>
                         </ToggleButton.Content>

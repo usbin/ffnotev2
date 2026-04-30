@@ -23,6 +23,7 @@
             </Style>
         </Border.Style>
         <Grid>
+        <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="22"/>
                 <RowDefinition Height="*"/>
@@ -89,8 +90,48 @@
                 </TextBlock>
             </Grid>
 
-            <!-- 리사이즈 핸들 (우하단) -->
-            <Thumb Grid.Row="1" Width="14" Height="14"
+        </Grid>
+
+            <!-- 외곽 리사이즈 핸들 (상/하/좌/우, 5px 두께. 투명하지만 hit-testable) -->
+            <Thumb Tag="Top" HorizontalAlignment="Stretch" VerticalAlignment="Top" Height="5"
+                   Cursor="SizeNS"
+                   DragStarted="ResizeThumb_DragStarted"
+                   DragDelta="ResizeThumb_DragDelta"
+                   DragCompleted="ResizeThumb_DragCompleted">
+                <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+                </Thumb.Template>
+            </Thumb>
+            <Thumb Tag="Bottom" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="5"
+                   Cursor="SizeNS"
+                   DragStarted="ResizeThumb_DragStarted"
+                   DragDelta="ResizeThumb_DragDelta"
+                   DragCompleted="ResizeThumb_DragCompleted">
+                <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+                </Thumb.Template>
+            </Thumb>
+            <Thumb Tag="Left" HorizontalAlignment="Left" VerticalAlignment="Stretch" Width="5"
+                   Cursor="SizeWE"
+                   DragStarted="ResizeThumb_DragStarted"
+                   DragDelta="ResizeThumb_DragDelta"
+                   DragCompleted="ResizeThumb_DragCompleted">
+                <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+                </Thumb.Template>
+            </Thumb>
+            <Thumb Tag="Right" HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="5"
+                   Cursor="SizeWE"
+                   DragStarted="ResizeThumb_DragStarted"
+                   DragDelta="ResizeThumb_DragDelta"
+                   DragCompleted="ResizeThumb_DragCompleted">
+                <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+                </Thumb.Template>
+            </Thumb>
+
+            <!-- 코너 리사이즈 핸들 (우하단, 가시적, 외곽보다 위에 배치 — 14×14 영역에서 우선 적용) -->
+            <Thumb Tag="Corner" Width="14" Height="14"
                    HorizontalAlignment="Right" VerticalAlignment="Bottom"
                    Cursor="SizeNWSE"
                    DragStarted="ResizeThumb_DragStarted"

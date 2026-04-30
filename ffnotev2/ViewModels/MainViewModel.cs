@@ -37,6 +37,36 @@ public partial class MainViewModel : ObservableObject
         foreach (var n in CurrentNotebook.Notes) n.IsSelected = (n == note);
     }
 
+    /// <summary>현재 노트북에서 from을 기준으로 지정 방향에서 가장 가까운 텍스트 노트 반환.</summary>
+    public NoteItem? FindNeighborNote(NoteItem from, string direction)
+    {
+        if (CurrentNotebook is null) return null;
+        var fromCx = from.X + from.Width / 2;
+        var fromCy = from.Y + from.Height / 2;
+        NoteItem? best = null;
+        double bestScore = double.MaxValue;
+        foreach (var n in CurrentNotebook.Notes)
+        {
+            if (n == from || n.Type != NoteType.Text) continue;
+            var cx = n.X + n.Width / 2;
+            var cy = n.Y + n.Height / 2;
+            var dx = cx - fromCx;
+            var dy = cy - fromCy;
+            bool inDir = direction switch
+            {
+                "Right" => dx > 0 && Math.Abs(dx) >= Math.Abs(dy),
+                "Left"  => dx < 0 && Math.Abs(dx) >= Math.Abs(dy),
+                "Down"  => dy > 0 && Math.Abs(dy) >= Math.Abs(dx),
+                "Up"    => dy < 0 && Math.Abs(dy) >= Math.Abs(dx),
+                _ => false
+            };
+            if (!inDir) continue;
+            var score = dx * dx + dy * dy;
+            if (score < bestScore) { bestScore = score; best = n; }
+        }
+        return best;
+    }
+
     private readonly DatabaseService _db;
     private readonly GameDetectionService _gameDetection;
 
