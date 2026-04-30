@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Media.Imaging;
@@ -41,9 +43,37 @@ public partial class MainViewModel : ObservableObject
     {
         Notebooks.Clear();
         foreach (var nb in _db.GetNotebooks())
+        {
             Notebooks.Add(nb);
+            HookNotebook(nb);
+        }
         if (CurrentNotebook is null && Notebooks.Count > 0)
             CurrentNotebook = Notebooks[0];
+    }
+
+    private void HookNotebook(NoteBook nb)
+    {
+        foreach (var note in nb.Notes) HookNote(note);
+        nb.Notes.CollectionChanged += OnNotesCollectionChanged;
+    }
+
+    private void OnNotesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems is not null)
+            foreach (NoteItem n in e.NewItems) HookNote(n);
+        if (e.OldItems is not null)
+            foreach (NoteItem n in e.OldItems) UnhookNote(n);
+    }
+
+    private void HookNote(NoteItem note) => note.PropertyChanged += OnNotePropertyChanged;
+    private void UnhookNote(NoteItem note) => note.PropertyChanged -= OnNotePropertyChanged;
+
+    private void OnNotePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not NoteItem note) return;
+        // 키 입력마다 Content가 갱신되면 즉시 DB에 반영. 닫기/종료 직전 데이터 유실 방지.
+        if (e.PropertyName == nameof(NoteItem.Content))
+            _db.UpdateNote(note);
     }
 
     private void OnGameDetected(object? sender, GameDetectedEventArgs e)
@@ -63,6 +93,7 @@ public partial class MainViewModel : ObservableObject
         var id = _db.CreateNotebook(name);
         var nb = new NoteBook { Id = id, Name = name };
         Notebooks.Add(nb);
+        HookNotebook(nb);
         CurrentNotebook = nb;
     }
 
@@ -104,7 +135,8 @@ public partial class MainViewModel : ObservableObject
             X = x,
             Y = y,
             Width = 200,
-            Height = 100
+            Height = 100,
+            IsEditing = true
         };
         note.Id = _db.AddNote(note);
         CurrentNotebook.Notes.Add(note);

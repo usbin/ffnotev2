@@ -56,8 +56,8 @@ public partial class DraggableNoteControl : UserControl
         if (canvas is null) return;
 
         var pos = e.GetPosition(canvas);
-        Item.X = Math.Max(0, _startX + (pos.X - _dragStart.X));
-        Item.Y = Math.Max(0, _startY + (pos.Y - _dragStart.Y));
+        Item.X = _startX + (pos.X - _dragStart.X);
+        Item.Y = _startY + (pos.Y - _dragStart.Y);
     }
 
     private void TitleBar_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -78,6 +78,13 @@ public partial class DraggableNoteControl : UserControl
     private void TextDisplay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ClickCount != 2) return;
+        BeginEdit();
+        e.Handled = true;
+    }
+
+    private void BeginEdit()
+    {
+        if (Item is null || Item.Type != NoteType.Text) return;
         // 표시 모드 → 편집 모드로 스왑 (IsReadOnly 토글 회피로 한글 IME 정상 동작)
         TextDisplayScroll.Visibility = Visibility.Collapsed;
         TextEditor.Visibility = Visibility.Visible;
@@ -86,7 +93,16 @@ public partial class DraggableNoteControl : UserControl
             Keyboard.Focus(TextEditor);
             TextEditor.CaretIndex = TextEditor.Text.Length;
         }), DispatcherPriority.Input);
-        e.Handled = true;
+    }
+
+    private void UserControl_Loaded(object sender, RoutedEventArgs e)
+    {
+        // 새로 생성된 노트는 IsEditing=true로 만들어져서 자동으로 편집 모드로 진입
+        if (Item is { IsEditing: true, Type: NoteType.Text })
+        {
+            Item.IsEditing = false;
+            BeginEdit();
+        }
     }
 
     private void TextEditor_LostFocus(object sender, RoutedEventArgs e)

@@ -16,19 +16,29 @@
     </Window.Resources>
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="220"/>
+            <ColumnDefinition x:Name="SidebarColumn" Width="220"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
         <!-- 사이드바 -->
-        <Border Grid.Column="0" Background="#FF252525" Padding="8">
+        <Border x:Name="Sidebar" Grid.Column="0" Background="#FF252525" Padding="8">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Text="노트북" FontWeight="Bold" Margin="0,0,0,8"/>
+                <Grid Grid.Row="0" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="노트북" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Content="◀" Width="22" Height="22"
+                            Background="Transparent" BorderThickness="0" Foreground="#FFCCCCCC"
+                            ToolTip="사이드바 접기"
+                            Click="SidebarToggle_Click"/>
+                </Grid>
                 <ListBox Grid.Row="1" x:Name="NotebookList"
                          ItemsSource="{Binding Notebooks}"
                          SelectedItem="{Binding CurrentNotebook, Mode=TwoWay}"
@@ -62,19 +72,37 @@
         </Border>
 
         <!-- 캔버스 영역 -->
-        <Grid Grid.Column="1" Background="#FF1E1E1E"
-              MouseRightButtonUp="Canvas_MouseRightButtonUp">
-            <ItemsControl ItemsSource="{Binding CurrentNotebook.Notes}"
-                          Visibility="{Binding HasCurrentNotebook, Converter={StaticResource BoolToVis}}">
+        <Grid x:Name="CanvasArea" Grid.Column="1" Background="#FF1E1E1E"
+              ClipToBounds="True"
+              FocusVisualStyle="{x:Null}"
+              MouseRightButtonUp="Canvas_MouseRightButtonUp"
+              MouseDown="CanvasArea_MouseDown"
+              MouseMove="CanvasArea_MouseMove"
+              MouseUp="CanvasArea_MouseUp"
+              PreviewMouseWheel="CanvasArea_MouseWheel"
+              LostMouseCapture="CanvasArea_LostMouseCapture">
+            <ItemsControl x:Name="NotesItemsControl"
+                          ItemsSource="{Binding CurrentNotebook.Notes}"
+                          Visibility="{Binding HasCurrentNotebook, Converter={StaticResource BoolToVis}}"
+                          RenderTransformOrigin="0,0"
+                          Focusable="False"
+                          FocusVisualStyle="{x:Null}">
+                <ItemsControl.RenderTransform>
+                    <TransformGroup>
+                        <ScaleTransform x:Name="CanvasScale" ScaleX="1" ScaleY="1"/>
+                        <TranslateTransform x:Name="CanvasTranslate" X="0" Y="0"/>
+                    </TransformGroup>
+                </ItemsControl.RenderTransform>
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <Canvas Background="Transparent" ClipToBounds="True"/>
+                        <Canvas Background="Transparent" ClipToBounds="False"/>
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemContainerStyle>
                     <Style>
                         <Setter Property="Canvas.Left" Value="{Binding X, Mode=TwoWay}"/>
                         <Setter Property="Canvas.Top" Value="{Binding Y, Mode=TwoWay}"/>
+                        <Setter Property="FrameworkElement.FocusVisualStyle" Value="{x:Null}"/>
                     </Style>
                 </ItemsControl.ItemContainerStyle>
                 <ItemsControl.ItemTemplate>
@@ -87,6 +115,30 @@
                        Foreground="#FF888888" FontSize="14"
                        HorizontalAlignment="Center" VerticalAlignment="Center"
                        Visibility="{Binding HasCurrentNotebook, Converter={StaticResource InvBoolToVis}}"/>
+
+            <!-- 사이드바 펼치기 핸들 (사이드바 접혔을 때만 노출) -->
+            <Button x:Name="SidebarReopenButton"
+                    Content="▶" Width="18" Height="44"
+                    HorizontalAlignment="Left" VerticalAlignment="Top"
+                    Margin="0,8,0,0"
+                    Background="#FF333333" Foreground="#FFCCCCCC" BorderThickness="0"
+                    Visibility="Collapsed"
+                    ToolTip="사이드바 펼치기"
+                    Click="SidebarToggle_Click"/>
+
+            <!-- 줌 인디케이터 -->
+            <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                    Margin="0,0,12,12" Padding="8,4"
+                    Background="#AA222222" CornerRadius="3"
+                    Visibility="{Binding HasCurrentNotebook, Converter={StaticResource BoolToVis}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="ZoomLabel" Text="100%" Foreground="#FFCCCCCC" FontSize="11"/>
+                    <Button Content="⟳" Margin="8,0,0,0" Width="20" Height="20"
+                            Background="Transparent" BorderThickness="0" Foreground="#FFCCCCCC"
+                            ToolTip="뷰 초기화"
+                            Click="ResetView_Click"/>
+                </StackPanel>
+            </Border>
         </Grid>
     </Grid>
 </Window>
