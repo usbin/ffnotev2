@@ -16,6 +16,11 @@ public partial class DraggableNoteControl : UserControl
     private Point _dragStart;
     // 일괄 드래그를 위해 선택된 모든 노트의 시작 좌표 캡처
     private List<(NoteItem Item, double StartX, double StartY)> _dragGroup = new();
+    // 본문 드래그 — 클릭 시작 시점에 이미 선택돼 있던 경우만 활성화 (첫 클릭으로의 선택 전환은 드래그 X)
+    private bool _clickStartedSelected;
+    // 본문 드래그 후보 상태: MouseDown 시 set → MouseMove에서 임계값 초과 시 실제 드래그로 승격
+    private bool _bodyPotentialDrag;
+    private Point _bodyDragStartScreen;
     // 일괄 리사이즈를 위해 선택된 모든 노트의 시작 X/Y/W/H 캡처 (좌/상 엣지가 X/Y도 변경)
     private List<(NoteItem Item, double StartX, double StartY, double StartW, double StartH)> _resizeGroup = new();
     private string _resizeEdge = "Corner";
@@ -119,6 +124,55 @@ public partial class DraggableNoteControl : UserControl
         _dragGroup.Clear();
     }
 
+    // 본문 드래그 — 노트가 클릭 시작 시점에 이미 선택돼 있을 때만 동작.
+    // 임계값(4px) 넘기 전에는 캡처/Handled 안 해서 더블클릭 편집 진입 + 하이퍼링크 클릭이 정상 작동.
+    private void BodyDrag_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (Item is null) return;
+        if (!_clickStartedSelected) return; // 첫 클릭으로 선택만 — 드래그 X
+        if (e.ClickCount > 1) return; // 더블클릭은 자식 핸들러(TextDisplay_MouseLeftButtonDown)로 통과
+        // 텍스트 편집 중이면 본문 클릭은 캐럿 이동 — 드래그 X
+        if (Item.Type == NoteType.Text && TextEditor.Visibility == Visibility.Visible) return;
+
+        var canvas = FindParentCanvas();
+        if (canvas is null) return;
+        _bodyPotentialDrag = true;
+        _bodyDragStartScreen = e.GetPosition(canvas);
+        // e.Handled = false 유지 — 자식의 MouseLeftButtonDown(예: TextBlock 더블클릭 누적, Hyperlink 활성화)도 정상 작동
+    }
+
+    private void BodyDrag_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (_bodyPotentialDrag)
+        {
+            var canvas = FindParentCanvas();
+            if (canvas is null) return;
+            var pos = e.GetPosition(canvas);
+            if (Math.Abs(pos.X - _bodyDragStartScreen.X) < 4 && Math.Abs(pos.Y - _bodyDragStartScreen.Y) < 4) return;
+
+            // 임계값 초과 — 드래그로 승격. TitleBar_MouseLeftButtonDown과 동일한 setup.
+            _bodyPotentialDrag = false;
+            _isDragging = true;
+            _dragStart = _bodyDragStartScreen;
+            var group = App.MainVM.SelectedNotes.ToList();
+            if (!group.Contains(Item!)) group = new List<NoteItem> { Item! };
+            _dragGroup = group.Select(n => (n, n.X, n.Y)).ToList();
+            ((UIElement)sender).CaptureMouse();
+        }
+        if (_isDragging) TitleBar_MouseMove(sender, e);
+    }
+
+    private void BodyDrag_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_bodyPotentialDrag)
+        {
+            // 단순 클릭으로 끝 — 드래그 안 됨
+            _bodyPotentialDrag = false;
+            return;
+        }
+        if (_isDragging) TitleBar_MouseLeftButtonUp(sender, e);
+    }
+
     private void TextDisplay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ClickCount != 2) return;
@@ -152,6 +206,12 @@ public partial class DraggableNoteControl : UserControl
     private void UserControl_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (Item is null) return;
+
+        // 본문 드래그가 "이미 선택된 상태"에서만 트리거되도록 클릭 시작 시점의 선택 상태 보존.
+        // 미선택 상태에서 첫 클릭은 SelectOnly에 의해 IsSelected=true가 되지만,
+        // 이 클릭으로 곧바로 드래그가 시작되면 단순 선택 의도와 충돌함.
+        _clickStartedSelected = Item.IsSelected;
+
         // 다른 노트의 TextBox에서 편집 중이라면 LostFocus를 트리거해 표시 모드로 복귀시킴.
         // TextBox 내부(글자 사이 클릭으로 캐럿 이동) 클릭은 제외해서 편집 흐름을 유지 —
         // 단순히 `e.OriginalSource is TextBox` 체크는 부족함. WPF TextBox의 OriginalSource는
