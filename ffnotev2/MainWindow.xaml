@@ -81,36 +81,65 @@
               MouseUp="CanvasArea_MouseUp"
               PreviewMouseWheel="CanvasArea_MouseWheel"
               LostMouseCapture="CanvasArea_LostMouseCapture">
-            <ItemsControl x:Name="NotesItemsControl"
-                          ItemsSource="{Binding CurrentNotebook.Notes}"
-                          Visibility="{Binding HasCurrentNotebook, Converter={StaticResource BoolToVis}}"
-                          RenderTransformOrigin="0,0"
-                          Focusable="False"
-                          FocusVisualStyle="{x:Null}">
-                <ItemsControl.RenderTransform>
+            <!-- 캔버스 콘텐츠: 그룹(뒤) + 노트(앞)를 함께 RenderTransform 적용 -->
+            <Grid x:Name="CanvasContent"
+                  Visibility="{Binding HasCurrentNotebook, Converter={StaticResource BoolToVis}}"
+                  IsHitTestVisible="True">
+                <Grid.RenderTransform>
                     <TransformGroup>
                         <ScaleTransform x:Name="CanvasScale" ScaleX="1" ScaleY="1"/>
                         <TranslateTransform x:Name="CanvasTranslate" X="0" Y="0"/>
                     </TransformGroup>
-                </ItemsControl.RenderTransform>
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <Canvas Background="Transparent" ClipToBounds="False"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemContainerStyle>
-                    <Style>
-                        <Setter Property="Canvas.Left" Value="{Binding X, Mode=TwoWay}"/>
-                        <Setter Property="Canvas.Top" Value="{Binding Y, Mode=TwoWay}"/>
-                        <Setter Property="FrameworkElement.FocusVisualStyle" Value="{x:Null}"/>
-                    </Style>
-                </ItemsControl.ItemContainerStyle>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <ctl:DraggableNoteControl/>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                </Grid.RenderTransform>
+
+                <!-- 그룹 레이어 (노트보다 뒤) -->
+                <ItemsControl x:Name="GroupsItemsControl"
+                              ItemsSource="{Binding CurrentNotebook.Groups}"
+                              Focusable="False"
+                              FocusVisualStyle="{x:Null}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas Background="Transparent" ClipToBounds="False"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemContainerStyle>
+                        <Style>
+                            <Setter Property="Canvas.Left" Value="{Binding X, Mode=TwoWay}"/>
+                            <Setter Property="Canvas.Top" Value="{Binding Y, Mode=TwoWay}"/>
+                            <Setter Property="FrameworkElement.FocusVisualStyle" Value="{x:Null}"/>
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <ctl:GroupBoxControl/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- 노트 레이어 (그룹 앞) -->
+                <ItemsControl x:Name="NotesItemsControl"
+                              ItemsSource="{Binding CurrentNotebook.Notes}"
+                              Focusable="False"
+                              FocusVisualStyle="{x:Null}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas Background="Transparent" ClipToBounds="False"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemContainerStyle>
+                        <Style>
+                            <Setter Property="Canvas.Left" Value="{Binding X, Mode=TwoWay}"/>
+                            <Setter Property="Canvas.Top" Value="{Binding Y, Mode=TwoWay}"/>
+                            <Setter Property="FrameworkElement.FocusVisualStyle" Value="{x:Null}"/>
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <ctl:DraggableNoteControl/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
             <TextBlock Text="노트북을 추가하거나 선택하세요"
                        Foreground="#FF888888" FontSize="14"
                        HorizontalAlignment="Center" VerticalAlignment="Center"

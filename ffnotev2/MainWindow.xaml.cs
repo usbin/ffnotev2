@@ -80,6 +80,24 @@ public partial class MainWindow : Window
             }
         }
 
+        // Ctrl+G: 선택 노트로 그룹 만들기. Ctrl+Shift+G: 선택된 그룹 해제
+        if (e.Key == Key.G && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control
+            && e.OriginalSource is not TextBox)
+        {
+            var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+            if (shift)
+            {
+                foreach (var g in App.MainVM.SelectedGroups.ToList())
+                    App.MainVM.DeleteGroup(g);
+            }
+            else
+            {
+                App.MainVM.CreateGroupFromSelectedNotes();
+            }
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.V && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         {
             // 편집 가능한 텍스트박스 안에서의 Ctrl+V는 기본 붙여넣기 살리기
@@ -203,19 +221,17 @@ public partial class MainWindow : Window
         }
         else if (App.MainVM.CurrentNotebook is { } nb)
         {
-            // world 좌표로 변환 후 인터섹트되는 노트 모두 선택
+            // world 좌표로 변환 후 인터섹트되는 노트/그룹 모두 선택
             var (wx1, wy1) = ScreenToWorld(_marqueeStart);
             var (wx2, wy2) = ScreenToWorld(endPoint);
             var minX = Math.Min(wx1, wx2);
             var maxX = Math.Max(wx1, wx2);
             var minY = Math.Min(wy1, wy2);
             var maxY = Math.Max(wy1, wy2);
-            foreach (var n in nb.Notes)
-            {
-                var hit = n.X + n.Width >= minX && n.X <= maxX
-                       && n.Y + n.Height >= minY && n.Y <= maxY;
-                n.IsSelected = hit;
-            }
+            bool Hit(double x, double y, double w, double h) =>
+                x + w >= minX && x <= maxX && y + h >= minY && y <= maxY;
+            foreach (var n in nb.Notes) n.IsSelected = Hit(n.X, n.Y, n.Width, n.Height);
+            foreach (var g in nb.Groups) g.IsSelected = Hit(g.X, g.Y, g.Width, g.Height);
         }
         MarqueeRect.Visibility = Visibility.Collapsed;
         _marqueeActive = false;
@@ -314,6 +330,27 @@ public partial class MainWindow : Window
         var addText = new MenuItem { Header = "새 텍스트 노트" };
         addText.Click += (_, _) => App.MainVM.AddTextNote(string.Empty, worldX, worldY);
         menu.Items.Add(addText);
+
+        var selectedCount = App.MainVM.SelectedNotes.Count();
+        if (selectedCount >= 1)
+        {
+            var groupItem = new MenuItem { Header = $"그룹 만들기 ({selectedCount}개) — Ctrl+G" };
+            groupItem.Click += (_, _) => App.MainVM.CreateGroupFromSelectedNotes();
+            menu.Items.Add(new Separator());
+            menu.Items.Add(groupItem);
+        }
+        var selectedGroups = App.MainVM.SelectedGroups.ToList();
+        if (selectedGroups.Count >= 1)
+        {
+            var ungroup = new MenuItem { Header = $"그룹 해제 ({selectedGroups.Count}개) — Ctrl+Shift+G" };
+            ungroup.Click += (_, _) =>
+            {
+                foreach (var g in selectedGroups) App.MainVM.DeleteGroup(g);
+            };
+            if (selectedCount < 1) menu.Items.Add(new Separator());
+            menu.Items.Add(ungroup);
+        }
+
         menu.PlacementTarget = (UIElement)sender;
         menu.IsOpen = true;
         e.Handled = true;

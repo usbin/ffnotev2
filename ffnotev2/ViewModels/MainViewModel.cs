@@ -29,12 +29,71 @@ public partial class MainViewModel : ObservableObject
     {
         if (CurrentNotebook is null) return;
         foreach (var n in CurrentNotebook.Notes) n.IsSelected = false;
+        foreach (var g in CurrentNotebook.Groups) g.IsSelected = false;
     }
 
     public void SelectOnly(NoteItem note)
     {
         if (CurrentNotebook is null) return;
         foreach (var n in CurrentNotebook.Notes) n.IsSelected = (n == note);
+        foreach (var g in CurrentNotebook.Groups) g.IsSelected = false;
+    }
+
+    public IEnumerable<NoteGroup> SelectedGroups =>
+        CurrentNotebook?.Groups.Where(g => g.IsSelected) ?? Enumerable.Empty<NoteGroup>();
+
+    public void SelectOnlyGroup(NoteGroup group)
+    {
+        if (CurrentNotebook is null) return;
+        foreach (var n in CurrentNotebook.Notes) n.IsSelected = false;
+        foreach (var g in CurrentNotebook.Groups) g.IsSelected = (g == group);
+    }
+
+    /// <summary>선택된 노트들의 bbox + padding으로 새 그룹을 생성하고 DB에 저장.</summary>
+    public NoteGroup? CreateGroupFromSelectedNotes(double padding = 10)
+    {
+        if (CurrentNotebook is null) return null;
+        var selected = SelectedNotes.ToList();
+        if (selected.Count == 0) return null;
+        var minX = selected.Min(n => n.X) - padding;
+        var minY = selected.Min(n => n.Y) - padding;
+        var maxX = selected.Max(n => n.X + n.Width) + padding;
+        var maxY = selected.Max(n => n.Y + n.Height) + padding;
+        var g = new NoteGroup
+        {
+            NotebookId = CurrentNotebook.Id,
+            X = minX, Y = minY,
+            Width = maxX - minX, Height = maxY - minY
+        };
+        g.Id = _db.AddGroup(g);
+        CurrentNotebook.Groups.Add(g);
+        return g;
+    }
+
+    public void DeleteGroup(NoteGroup group)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+        _db.DeleteGroup(group.Id);
+        CurrentNotebook?.Groups.Remove(group);
+    }
+
+    public void UpdateGroupPosition(NoteGroup group)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+        _db.UpdateGroup(group);
+    }
+
+    /// <summary>그룹의 bbox에 완전 내포된 모든 NoteItem과 NoteGroup(자기 자신 제외) 반환.</summary>
+    public (IList<NoteItem> Notes, IList<NoteGroup> Groups) GetMembersOf(NoteGroup g)
+    {
+        if (CurrentNotebook is null) return (Array.Empty<NoteItem>(), Array.Empty<NoteGroup>());
+        bool Inside(double x, double y, double w, double h) =>
+            x >= g.X && y >= g.Y && (x + w) <= (g.X + g.Width) && (y + h) <= (g.Y + g.Height);
+        var notes = CurrentNotebook.Notes.Where(n => Inside(n.X, n.Y, n.Width, n.Height)).ToList();
+        var groups = CurrentNotebook.Groups
+            .Where(other => other != g && Inside(other.X, other.Y, other.Width, other.Height))
+            .ToList();
+        return (notes, groups);
     }
 
     /// <summary>현재 노트북에서 from을 기준으로 지정 방향에서 가장 가까운 텍스트 노트 반환.</summary>

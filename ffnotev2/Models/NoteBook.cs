@@ -20,4 +20,5 @@ public partial class NoteBook : ObservableObject
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ObservableCollection<NoteItem> Notes { get; } = new();
+    public ObservableCollection<NoteGroup> Groups { get; } = new();
 }

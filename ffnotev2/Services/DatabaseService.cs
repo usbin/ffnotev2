@@ -67,6 +67,15 @@ public class DatabaseService
                     UpdatedAt TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS IX_NoteItems_NotebookId ON NoteItems(NotebookId);
+                CREATE TABLE IF NOT EXISTS NoteGroups (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    NotebookId INTEGER NOT NULL REFERENCES Notebooks(Id) ON DELETE CASCADE,
+                    X REAL NOT NULL,
+                    Y REAL NOT NULL,
+                    Width REAL NOT NULL,
+                    Height REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS IX_NoteGroups_NotebookId ON NoteGroups(NotebookId);
                 """;
             cmd.ExecuteNonQuery();
         }
@@ -117,32 +126,92 @@ public class DatabaseService
 
         foreach (var nb in notebooks)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT Id, Type, Content, X, Y, Width, Height, CreatedAt, UpdatedAt
-                FROM NoteItems WHERE NotebookId = $nb ORDER BY Id
-                """;
-            cmd.Parameters.AddWithValue("$nb", nb.Id);
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
+            using (var cmd = conn.CreateCommand())
             {
-                nb.Notes.Add(new NoteItem
+                cmd.CommandText = """
+                    SELECT Id, Type, Content, X, Y, Width, Height, CreatedAt, UpdatedAt
+                    FROM NoteItems WHERE NotebookId = $nb ORDER BY Id
+                    """;
+                cmd.Parameters.AddWithValue("$nb", nb.Id);
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
                 {
-                    Id = reader.GetInt32(0),
-                    NotebookId = nb.Id,
-                    Type = (NoteType)reader.GetInt32(1),
-                    Content = reader.GetString(2),
-                    X = reader.GetDouble(3),
-                    Y = reader.GetDouble(4),
-                    Width = reader.GetDouble(5),
-                    Height = reader.GetDouble(6),
-                    CreatedAt = DateTime.Parse(reader.GetString(7)),
-                    UpdatedAt = DateTime.Parse(reader.GetString(8))
-                });
+                    nb.Notes.Add(new NoteItem
+                    {
+                        Id = reader.GetInt32(0),
+                        NotebookId = nb.Id,
+                        Type = (NoteType)reader.GetInt32(1),
+                        Content = reader.GetString(2),
+                        X = reader.GetDouble(3),
+                        Y = reader.GetDouble(4),
+                        Width = reader.GetDouble(5),
+                        Height = reader.GetDouble(6),
+                        CreatedAt = DateTime.Parse(reader.GetString(7)),
+                        UpdatedAt = DateTime.Parse(reader.GetString(8))
+                    });
+                }
+            }
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT Id, X, Y, Width, Height FROM NoteGroups WHERE NotebookId = $nb ORDER BY Id";
+                cmd.Parameters.AddWithValue("$nb", nb.Id);
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    nb.Groups.Add(new NoteGroup
+                    {
+                        Id = reader.GetInt32(0),
+                        NotebookId = nb.Id,
+                        X = reader.GetDouble(1),
+                        Y = reader.GetDouble(2),
+                        Width = reader.GetDouble(3),
+                        Height = reader.GetDouble(4)
+                    });
+                }
             }
         }
 
         return notebooks;
+    }
+
+    public int AddGroup(NoteGroup g)
+    {
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO NoteGroups (NotebookId, X, Y, Width, Height)
+            VALUES ($nb, $x, $y, $w, $h);
+            SELECT last_insert_rowid();
+            """;
+        cmd.Parameters.AddWithValue("$nb", g.NotebookId);
+        cmd.Parameters.AddWithValue("$x", g.X);
+        cmd.Parameters.AddWithValue("$y", g.Y);
+        cmd.Parameters.AddWithValue("$w", g.Width);
+        cmd.Parameters.AddWithValue("$h", g.Height);
+        return Convert.ToInt32(cmd.ExecuteScalar());
+    }
+
+    public void UpdateGroup(NoteGroup g)
+    {
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE NoteGroups SET X=$x, Y=$y, Width=$w, Height=$h WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$x", g.X);
+        cmd.Parameters.AddWithValue("$y", g.Y);
+        cmd.Parameters.AddWithValue("$w", g.Width);
+        cmd.Parameters.AddWithValue("$h", g.Height);
+        cmd.Parameters.AddWithValue("$id", g.Id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void DeleteGroup(int id)
+    {
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM NoteGroups WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
     }
 
     public int CreateNotebook(string name, string? processName = null)
