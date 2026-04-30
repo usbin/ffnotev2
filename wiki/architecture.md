@@ -1,4 +1,4 @@
-<!-- 최종 수정: 2026-04-29 -->
+<!-- 최종 수정: 2026-04-30 -->
 # 아키텍처
 
 ## 디렉터리 구조
@@ -50,12 +50,14 @@ App.xaml.cs
   ├── MainWindow               (Canvas, HotkeyService → SettingsService)
   └── OverlayWindow            (Topmost, 반투명, 투명도 SettingsService 동기화)
 
-MainWindow (Canvas)
-  └── ItemsControl
-        └── DraggableNoteControl × N  (NoteItem DataContext)
+MainWindow (Sidebar [토글] | CanvasArea Grid)
+  └── ItemsControl  (RenderTransform: ScaleTransform + TranslateTransform)
+        └── DraggableNoteControl × N  (NoteItem DataContext, 10px 격자 스냅)
 ```
 
 - `App.MainVM` / `App.OverlayVM` — static 프로퍼티로 뷰모델 공유
 - 이미지는 파일로 저장 (`%APPDATA%\ffnotev2\images\{guid}.png`), DB에는 경로만 저장
 - `HotkeyService`는 `LibraryImport` (source-generated P/Invoke) 사용, csproj에 `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>` 필요
 - 단축키는 `MainWindow.ReregisterHotkeys()`로 `SettingsService` 값에 따라 (재)등록
+- 캔버스는 `RenderTransform`(ScaleTransform×TranslateTransform) 기반 Pan/Zoom — 노트는 world 좌표(`NoteItem.X/Y`)에 위치하고 transform이 화면에 매핑. 좌표는 `MainViewModel.Snap()`으로 10px 격자에 라운딩
+- 텍스트 편집은 키 입력마다 `Item.Content`가 갱신되고, `MainViewModel`이 `PropertyChanged`를 구독해 즉시 DB에 반영 (앱 종료 시 손실 방지)

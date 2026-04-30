@@ -14,6 +14,11 @@ namespace ffnotev2.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
+    public const double GridSize = 10;
+
+    /// <summary>월드 좌표를 10px 격자에 가장 가까운 값으로 라운딩.</summary>
+    public static double Snap(double v) => Math.Round(v / GridSize) * GridSize;
+
     private readonly DatabaseService _db;
     private readonly GameDetectionService _gameDetection;
 
@@ -132,8 +137,8 @@ public partial class MainViewModel : ObservableObject
             NotebookId = CurrentNotebook.Id,
             Type = NoteType.Text,
             Content = text,
-            X = x,
-            Y = y,
+            X = Snap(x),
+            Y = Snap(y),
             Width = 200,
             Height = 100,
             IsEditing = true
@@ -151,8 +156,8 @@ public partial class MainViewModel : ObservableObject
             NotebookId = CurrentNotebook.Id,
             Type = NoteType.Image,
             Content = imagePath,
-            X = x,
-            Y = y,
+            X = Snap(x),
+            Y = Snap(y),
             Width = 400,
             Height = 300
         };
@@ -169,8 +174,8 @@ public partial class MainViewModel : ObservableObject
             NotebookId = CurrentNotebook.Id,
             Type = NoteType.Link,
             Content = url,
-            X = x,
-            Y = y,
+            X = Snap(x),
+            Y = Snap(y),
             Width = 300,
             Height = 56
         };

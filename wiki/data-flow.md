@@ -1,4 +1,4 @@
-<!-- 최종 수정: 2026-04-29 -->
+<!-- 최종 수정: 2026-04-30 -->
 # 데이터 흐름
 
 ## 붙여넣기 (Ctrl+V)
@@ -16,30 +16,96 @@
        6) 모두 실패 → 사용 가능한 클립보드 포맷을 MessageBox로 안내
 ```
 
-## 노트 드래그 / 리사이즈
+## 노트 드래그 / 리사이즈 (10px 격자 스냅)
 
 ```
 타이틀바 MouseLeftButtonDown
   → CaptureMouse, _startX/Y 저장
-  → MouseMove: NoteItem.X/Y 갱신 (Canvas.Left/Top TwoWay 바인딩 자동 이동)
+  → MouseMove: NoteItem.X/Y = MainViewModel.Snap(start + Δ)
+       (Canvas.Left/Top TwoWay 바인딩 자동 이동, 격자 단위로 또각또각)
   → MouseLeftButtonUp: MainViewModel.UpdateNotePosition() — DB 저장
 
 우하단 Thumb DragDelta
-  → NoteItem.Width/Height 변경 (min 80×40)
+  → NoteItem.Width/Height = max(min, Snap(현재 + Δ)) (min 80×40)
   → DragCompleted: MainViewModel.UpdateNoteContent() — DB 전체 갱신
 ```
 
-## 텍스트 편집 (TextBlock ↔ TextBox 스왑)
+새 노트 생성 좌표(`AddTextNote/AddImageNote/AddLinkNote`)도 진입부에서 `Snap()` 적용 — 클립보드 붙여넣기·우클릭 메뉴·오버레이 빠른 입력 모두 자동 정렬.
+
+## 텍스트 편집 (TextBlock ↔ TextBox 스왑) + 즉시 저장
 
 ```
 표시 모드: TextBlock (선택 불가, 단순 표시)
-  → 더블클릭 (ClickCount==2)
-  → TextBlock.Visibility=Collapsed, TextBox.Visibility=Visible
-  → Dispatcher.BeginInvoke(Input)로 Keyboard.Focus(TextBox)
+  → 더블클릭(ClickCount==2) 또는 새로 생성 시 자동(IsEditing=true)
+  → BeginEdit(): TextBlock.Visibility=Collapsed, TextBox.Visibility=Visible
+  → Dispatcher.BeginInvoke(Input)로 Keyboard.Focus(TextBox), 캐럿을 끝으로
 편집 중: TextBox (IME 컨텍스트 정상 — IsReadOnly 토글 회피)
+  → 키 입력마다 (UpdateSourceTrigger=PropertyChanged)
+       Item.Content 즉시 갱신
+       → NoteItem.PropertyChanged → MainViewModel.OnNotePropertyChanged
+       → e.PropertyName == nameof(Content)면 _db.UpdateNote(note) 즉시 저장
   → ESC 또는 다른 곳 클릭 (LostFocus)
   → TextBox.Visibility=Collapsed, TextBlock.Visibility=Visible
-  → MainViewModel.UpdateNoteContent() 저장
+  → 추가로 한 번 더 UpdateNoteContent() 호출 (defense in depth)
+```
+
+키 입력 단위로 DB에 반영되므로 사용자가 트레이 종료/창 닫기를 해도 마지막 글자까지 보존됨.
+
+## 새 노트 자동 편집 진입
+
+```
+사용자 우클릭 → "새 텍스트 노트"
+  → MainViewModel.AddTextNote(content="", x, y)
+       NoteItem 생성 시 IsEditing = true (DB 미저장 transient 플래그)
+       → CurrentNotebook.Notes.Add(note) → DataTemplate으로 DraggableNoteControl 생성
+  → DraggableNoteControl.Loaded
+       Item.IsEditing == true && Type == Text 이면
+         IsEditing = false 후 BeginEdit() — 즉시 편집 모드로 진입, TextBox에 포커스
+```
+
+## 캔버스 Pan/Zoom (무한 캔버스)
+
+```
+ItemsControl.RenderTransform = TransformGroup
+  ├── ScaleTransform CanvasScale (ScaleX/ScaleY 기본 1)
+  └── TranslateTransform CanvasTranslate (X/Y 기본 0)
+
+세 가지 입력 → 같은 transform 변경:
+
+[휠 클릭 드래그] (즉시 팬 모드)
+  CanvasArea_MouseDown(Middle) → _panButton=Middle, 즉시 Cursor=SizeAll, CaptureMouse
+  MouseMove → CanvasTranslate.X/Y = startTx/Ty + Δ
+  MouseUp(Middle) → EndPan()
+
+[우클릭 드래그] (4px 임계값 후 팬)
+  MouseDown(Right) → _panButton=Right, _panMoved=false, CaptureMouse
+  MouseMove → 임계값 초과 시 _panMoved=true → translate 갱신
+  MouseRightButtonUp (MouseUp보다 먼저 발생할 수 있어 여기서 직접 정리)
+    → wasPan이면 e.Handled=true (컨텍스트 메뉴 억제) + EndPan()
+    → wasPan 아니면 컨텍스트 메뉴 표시 (단순 우클릭)
+
+[Ctrl+휠] PreviewMouseWheel — 자식 ScrollViewer가 먹기 전 터널 단계에서 처리
+  → 마우스 위치를 world 좌표로 환산 → 새 scale (Clamp 0.2~4.0)
+  → translate 보정으로 같은 world 점이 화면 같은 위치에 유지 (마우스 앵커 줌)
+  → ZoomLabel "{N}%"
+
+[좌표 변환]
+  screen → world: world = (screen - translate) / scale
+  Ctrl+V 붙여넣기, 우클릭 메뉴 모두 ScreenToWorld() 후 AddNote (그리고 AddNote가 Snap)
+
+[안전망]
+  CanvasArea.LostMouseCapture → 컨텍스트 메뉴 등에 캡처를 빼앗기면 EndPan()
+  뷰 초기화 버튼 (⟳) → scale=1, translate=0, ZoomLabel="100%"
+```
+
+## 사이드바 토글
+
+```
+사이드바 헤더 ◀ 버튼 클릭
+  → SidebarColumn.Width = 0, Sidebar.Visibility=Collapsed
+  → SidebarReopenButton(▶) Visible (캔버스 좌상단)
+다시 ▶ 클릭
+  → SidebarColumn.Width = 220, 원복
 ```
 
 ## 시작 흐름 (백그라운드 우선)
