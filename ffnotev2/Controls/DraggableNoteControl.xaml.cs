@@ -173,39 +173,45 @@ public partial class DraggableNoteControl : UserControl
         // Alt+방향키 노트 이동은 Window_PreviewKeyDown에서 통합 처리
     }
 
-    private double _resizeAccumDx;
-    private double _resizeAccumDy;
+    // 리사이즈 시작 시점의 마우스 절대 위치(부모 캔버스 좌표계). thumb 자체가 리사이즈로
+    // 같이 움직일 때 thumb-local 기준 누적 델타가 양자화된 스냅과 만나 진동(점프 백)을
+    // 유발하므로, 캔버스 기준의 안정적인 좌표를 직접 비교한다.
+    private Point _resizeMouseStart;
 
     private void ResizeThumb_DragStarted(object sender, DragStartedEventArgs e)
     {
         if (Item is null) return;
+        var canvas = FindParentCanvas();
+        if (canvas is null) return;
         _resizeEdge = (sender as FrameworkElement)?.Tag as string ?? "Corner";
         var group = App.MainVM.SelectedNotes.ToList();
         if (!group.Contains(Item)) group = new List<NoteItem> { Item };
         _resizeGroup = group.Select(n => (n, n.X, n.Y, n.Width, n.Height)).ToList();
-        _resizeAccumDx = 0;
-        _resizeAccumDy = 0;
+        _resizeMouseStart = Mouse.GetPosition(canvas);
     }
 
     private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
     {
         if (_resizeGroup.Count == 0) return;
-        _resizeAccumDx += e.HorizontalChange;
-        _resizeAccumDy += e.VerticalChange;
+        var canvas = FindParentCanvas();
+        if (canvas is null) return;
+        var mouseNow = Mouse.GetPosition(canvas);
+        var dx = mouseNow.X - _resizeMouseStart.X;
+        var dy = mouseNow.Y - _resizeMouseStart.Y;
         foreach (var (it, sx, sy, sw, sh) in _resizeGroup)
         {
             switch (_resizeEdge)
             {
                 case "Right":
-                    it.Width = Math.Max(80, App.MainVM.MaybeSnap(sw + _resizeAccumDx));
+                    it.Width = Math.Max(80, App.MainVM.MaybeSnap(sw + dx));
                     break;
                 case "Bottom":
-                    it.Height = Math.Max(40, App.MainVM.MaybeSnap(sh + _resizeAccumDy));
+                    it.Height = Math.Max(40, App.MainVM.MaybeSnap(sh + dy));
                     break;
                 case "Left":
                 {
                     var right = sx + sw;
-                    var newX = App.MainVM.MaybeSnap(sx + _resizeAccumDx);
+                    var newX = App.MainVM.MaybeSnap(sx + dx);
                     if (right - newX < 80) newX = right - 80;
                     it.X = newX;
                     it.Width = right - newX;
@@ -214,15 +220,15 @@ public partial class DraggableNoteControl : UserControl
                 case "Top":
                 {
                     var bottom = sy + sh;
-                    var newY = App.MainVM.MaybeSnap(sy + _resizeAccumDy);
+                    var newY = App.MainVM.MaybeSnap(sy + dy);
                     if (bottom - newY < 40) newY = bottom - 40;
                     it.Y = newY;
                     it.Height = bottom - newY;
                     break;
                 }
                 default: // Corner
-                    it.Width = Math.Max(80, App.MainVM.MaybeSnap(sw + _resizeAccumDx));
-                    it.Height = Math.Max(40, App.MainVM.MaybeSnap(sh + _resizeAccumDy));
+                    it.Width = Math.Max(80, App.MainVM.MaybeSnap(sw + dx));
+                    it.Height = Math.Max(40, App.MainVM.MaybeSnap(sh + dy));
                     break;
             }
         }
