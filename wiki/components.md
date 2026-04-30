@@ -54,7 +54,7 @@
 
 ### 사용자 변경 가능 (트레이 → 단축키 설정)
 
-**글로벌**: `Ctrl+Shift+N` 메인 창 / `Ctrl+Shift+M` 오버레이 / `Ctrl+Alt+Z` 클릭 패스스루
+**글로벌**: `Ctrl+Alt+N` 메인 창 / `Ctrl+Alt+M` 오버레이 / `Ctrl+Alt+Z` 클릭 패스스루
 **노트북 전환**: `Ctrl+1` ~ `Ctrl+9`, `Ctrl+0` → Notebooks[0..9] (해당 인덱스 없으면 무시)
 
 ### 기본 단축키 (변경 불가)
