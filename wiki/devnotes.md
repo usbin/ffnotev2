@@ -1,33 +1,13 @@
-<!-- 최종 수정: 2026-05-02 -->
+<!-- 최종 수정: 2026-05-03 -->
 # 개발 노트
-
-## 🚨 최우선 미해결 — 표시 모드 이모지가 흰색으로 tint됨
-
-`MarkdownRenderer.AppendTextWithEmoji`가 `Emoji.Wpf.EmojiInline`로 만든 이모지가
-표시 모드(FlowDocument)에서 모두 흰색으로 보임. 컬러 Twemoji 이미지 위에 부모
-Run/Paragraph의 Foreground(`#EEEEEE`)가 tint로 덮어씌워지는 것으로 추정.
-
-**시도한 우회**: v1.0.17에서 `EmojiInline.Child(Image).Effect = null` 명시 시도 →
-**효과 없음**. Effect가 다른 경로(Style/Trigger 등)로 다시 적용되거나, tint가
-`Effect`가 아닌 다른 메커니즘(예: ImageBrush + OpacityMask)일 가능성.
-
-**다음 시도 후보**:
-1. `Emoji.Wpf` 0.3.4 소스 디컴파일/리포 확인 — `EmojiInline`/`Image` 내부에서 어떻게 부모
-   Foreground를 picking하는지 정확한 메커니즘 파악
-2. `EmojiInline`을 `InlineUIContainer` + 직접 `Image`(ImageCache로 Twemoji PNG 로드)로 대체.
-   라이브러리 의존 줄임 + tint 메커니즘 우회. Twemoji codepoint → URL 매핑 필요
-3. `Emoji.Wpf.IEmojiControl` 인터페이스에 색상 비활성 옵션 있는지 확인
-4. `EmojiInline.SetValue(TextElement.ForegroundProperty, DependencyProperty.UnsetValue)` 또는
-   별도 isolated VisualTree로 분리해 부모 Foreground inheritance 차단
-
-편집 모드(TextBox)에선 OS native 흑백 이모지가 그대로 표시되어 영향 없음 — 표시 모드 한정.
 
 ## 최근 변경 (2026-05-02)
 
-- **마크다운 노트 첫 표시 성능 개선 (v1.0.18)**: 노트북 열 때 N개 텍스트 노트가 모두 동시에 동기 Markdig 파싱 + 임베드 이미지 디스크 read를 UI 스레드에서 수행해 첫 표시 freeze. 세 가지 fix:
+- **마크다운 노트 첫 표시 성능 개선 + 이모지 흰색 tint fix (v1.0.18)**: 노트북 열 때 N개 텍스트 노트가 모두 동시에 동기 Markdig 파싱 + 임베드 이미지 디스크 read를 UI 스레드에서 수행해 첫 표시 freeze. 그리고 v1.0.17 시도(즉시 `EmojiInline.Child.Effect = null`)는 효과 없었던 이모지 흰색 tint도 같은 릴리즈에서 해결됨. 네 가지 fix:
   - `DraggableNoteControl.UserControl_Loaded`에서 `RefreshDocument`를 `Dispatcher.BeginInvoke(DispatcherPriority.Background)`로 미룸 — 첫 표시는 빈 FlowDocument 즉시, 마크다운은 백그라운드로 채워짐
   - `Services/ImageCache`(static, lock 보호) 신규 — 경로(+다운샘플 폭) 단위로 frozen `BitmapImage` 캐시. 같은 이미지를 여러 노트가 참조하면 디스크 read 1회. 노트 삭제 시 `Invalidate(path)` 호출
   - `MarkdownRenderer.TryBuildImage`가 `ImageCache.Get(path, 800)`로 변경 — 임베드 이미지에 다운샘플 적용 (이전엔 풀 해상도). `PathToImageConverter`도 동일 캐시 사용
+  - 이모지 흰색 tint: 즉시 `Effect=null`에 더해 `EmojiInline.Loaded` 이벤트 + 그 안의 `Dispatcher.BeginInvoke(Loaded priority)`로 Loaded 이후에도 한 번 더 `Effect=null` 적용. Emoji.Wpf 라이브러리가 Loaded 이후 시점에 `TintEffect`를 재적용하는 것으로 추정 — 그 뒤에 덮어쓰는 패턴이 동작
 
   뒤로 미룬 것: 마크다운 AST/FlowDocument 캐시 (FlowDocument는 한 visual에 한 번만 attach 가능해 캐싱 까다로움), 노트 가상화 (Pan/Zoom 좌표 기반 spatial index 필요 — 노트 100+ 단위에서 의미). [향후 거대 노트북 사용 시 검토]
 
