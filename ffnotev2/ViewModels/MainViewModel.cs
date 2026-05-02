@@ -755,5 +755,7 @@ public partial class MainViewModel : ObservableObject
         {
             // 파일 삭제 실패는 조용히 무시
         }
+        // 캐시도 함께 정리 — 같은 경로로 새 파일이 생성될 가능성은 거의 없지만 메모리 회수
+        Services.ImageCache.Invalidate(path);
     }
 }

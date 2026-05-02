@@ -372,10 +372,19 @@ public static class MarkdownRenderer
                     Text = emojiText,
                     FontSize = baseFontSize,
                 };
-                // Emoji.Wpf의 TintEffect가 부모 Run/Paragraph의 Foreground(흰색)를
-                // 이모지 픽셀에 tint로 입혀 모든 이모지가 흰색으로 보이는 문제 회피.
-                // 내부 Child(Image)의 Effect를 명시적으로 제거.
-                if (emoji.Child is UIElement child) child.Effect = null;
+                // Emoji.Wpf 내부가 부모 Foreground(흰색)를 받아 이모지에 tint를 입혀
+                // 모든 이모지가 흰색으로 보이는 문제 회피. v1.0.17의 즉시 Effect=null은
+                // 효과 없었음 — 라이브러리가 Loaded 이후에 Effect를 (재)적용하는 듯해서
+                // Loaded 이벤트 + Dispatcher.BeginInvoke로 늦게 한 번 더 null 처리.
+                if (emoji.Child is UIElement c0) c0.Effect = null;
+                emoji.Loaded += (_, _) =>
+                {
+                    if (emoji.Child is UIElement c) c.Effect = null;
+                    emoji.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        if (emoji.Child is UIElement c2) c2.Effect = null;
+                    }), System.Windows.Threading.DispatcherPriority.Loaded);
+                };
                 target.Add(emoji);
             }
             else
@@ -424,31 +433,21 @@ public static class MarkdownRenderer
     {
         if (string.IsNullOrWhiteSpace(url)) return null;
 
-        try
-        {
-            var path = ResolveImagePath(url, imageBaseDir);
-            if (path is null) return null;
+        var path = ResolveImagePath(url, imageBaseDir);
+        if (path is null) return null;
 
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
-            bmp.UriSource = new Uri(path, UriKind.Absolute);
-            bmp.EndInit();
-            bmp.Freeze();
+        // 표시 영역 폭은 노트 크기에 따라 다르지만 800px 다운샘플로 디코드 비용/메모리 ~5-10배 감소.
+        // 같은 이미지를 여러 노트가 참조하면 디스크 read 1회 (ImageCache).
+        var bmp = ImageCache.Get(path, 800);
+        if (bmp is null) return null;
 
-            return new Image
-            {
-                Source = bmp,
-                Stretch = Stretch.Uniform,
-                MaxHeight = 400,
-                Margin = new Thickness(0, 4, 0, 4),
-            };
-        }
-        catch
+        return new Image
         {
-            return null;
-        }
+            Source = bmp,
+            Stretch = Stretch.Uniform,
+            MaxHeight = 400,
+            Margin = new Thickness(0, 4, 0, 4),
+        };
     }
 
     private static string? ResolveImagePath(string url, string imageBaseDir)

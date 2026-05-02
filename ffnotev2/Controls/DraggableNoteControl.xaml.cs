@@ -274,7 +274,11 @@ public partial class DraggableNoteControl : UserControl
             svc.SettingsChanged += OnSettingsChanged;
         }
         ApplyEditorFont();
-        RefreshDocument();
+        // RefreshDocument는 Markdig 파싱 + 임베드 이미지 디코드를 동기로 수행해 노트북을
+        // 처음 열 때 노트 N개의 동시 비용이 UI 스레드를 블로킹. Background priority로
+        // 미뤄 첫 표시는 빈 FlowDocument로 즉시, 마크다운은 사용자가 보는 동안 채워지게 함.
+        // 단 자동 편집 진입(아래)은 즉시 실행 — Loaded 시점 IsEditing 플래그 처리.
+        Dispatcher.BeginInvoke(new Action(RefreshDocument), DispatcherPriority.Background);
 
         // 새로 생성된 노트는 IsEditing=true로 만들어져서 자동으로 편집 모드로 진입
         if (Item is { IsEditing: true, Type: NoteType.Text })
