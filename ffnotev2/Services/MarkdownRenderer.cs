@@ -79,6 +79,14 @@ public static class MarkdownRenderer
 
     private static Paragraph BuildHeading(HeadingBlock h, double baseFontSize, string imageBaseDir)
     {
+        // 헤더 레벨별 하단 여백 (H1이 가장 넓고 점차 좁아짐)
+        double bottomMargin = h.Level switch
+        {
+            1 => 12,
+            2 => 8,
+            3 => 4,
+            _ => 2,
+        };
         var p = new Paragraph
         {
             FontWeight = FontWeights.Bold,
@@ -91,32 +99,61 @@ public static class MarkdownRenderer
                 5 => baseFontSize + 1,
                 _ => baseFontSize,
             },
-            Margin = new Thickness(0, h.Level == 1 ? 4 : 2, 0, 2),
+            Margin = new Thickness(0, h.Level == 1 ? 4 : 2, 0, bottomMargin),
         };
+        // H1/H2는 하단 가로 구분선
+        if (h.Level <= 2)
+        {
+            p.BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
+            p.BorderThickness = new Thickness(0, 0, 0, 1);
+            p.Padding = new Thickness(0, 0, 0, 4);
+        }
         AppendInlines(p.Inlines, h.Inline, baseFontSize, imageBaseDir);
         return p;
     }
 
-    private static List BuildList(ListBlock list, double baseFontSize, string imageBaseDir)
+    private static Section BuildList(ListBlock list, double baseFontSize, string imageBaseDir)
     {
-        var l = new List
+        // WPF의 List MarkerStyle=Decimal은 항상 1부터 자동 시퀀셜 번호로 매겨
+        // raw 마커("1. 3. 4." → "1. 2. 3.")를 그대로 보존 못 함.
+        // 또한 unordered 안에 "1." 같은 텍스트가 들어가면 nested ordered로 인식되어
+        // 시각적으로 모두 "1."로 보이는 문제도 발생.
+        // 해결: List 컨트롤 대신 Section + 각 ListItem의 첫 paragraph에 raw 마커를
+        // Run으로 직접 prepend. 자동 매김 없음, 사용자가 의도한 마커 그대로 표시.
+        int.TryParse(list.OrderedStart, out var start);
+        if (start <= 0) start = 1;
+
+        var sec = new Section
         {
-            MarkerStyle = list.IsOrdered ? TextMarkerStyle.Decimal : TextMarkerStyle.Disc,
-            Margin = new Thickness(0, 2, 0, 2),
-            Padding = new Thickness(20, 0, 0, 0),
+            Margin = new Thickness(20, 2, 0, 2),
         };
+        int idx = 0;
         foreach (var child in list)
         {
             if (child is not ListItemBlock item) continue;
-            var li = new ListItem();
+            var marker = list.IsOrdered ? $"{start + idx}. " : "• ";
+            bool markerInjected = false;
             foreach (var sub in item)
             {
                 var converted = ConvertBlock(sub, baseFontSize, imageBaseDir);
-                if (converted is not null) li.Blocks.Add(converted);
+                if (converted is null) continue;
+                if (!markerInjected && converted is Paragraph p)
+                {
+                    p.Margin = new Thickness(0, 1, 0, 1);
+                    if (p.Inlines.FirstInline is not null)
+                        p.Inlines.InsertBefore(p.Inlines.FirstInline, new Run(marker));
+                    else
+                        p.Inlines.Add(new Run(marker));
+                    markerInjected = true;
+                }
+                sec.Blocks.Add(converted);
             }
-            l.ListItems.Add(li);
+            // 빈 항목이라도 마커는 표시
+            if (!markerInjected)
+                sec.Blocks.Add(new Paragraph(new Run(marker)) { Margin = new Thickness(0, 1, 0, 1) });
+            idx++;
         }
-        return l;
+        return sec;
     }
 
     private static Paragraph BuildCodeBlock(string code)

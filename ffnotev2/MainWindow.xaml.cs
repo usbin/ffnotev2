@@ -421,30 +421,37 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.ChangedButton != MouseButton.Middle && e.ChangedButton != MouseButton.Right) return;
+        // 우클릭은 PreviewMouseRightButtonDown(터널)에서 처리 — 노트/그룹 자식 핸들러보다 먼저 가로채야
+        // 노트 위에서도 pan 후보로 진입 가능. 여기는 휠클릭만 처리.
+        if (e.ChangedButton != MouseButton.Middle) return;
         if (_panButton is not null) return;
 
-        // 우클릭은 항상 팬 후보로 진입(노트/그룹 위에서도). 이동 없이 떼었을 때만 메뉴.
-        // 마우스 캡처로 노트의 MouseRightButtonUp이 막혀도, _rightClickOrigin에 저장한
-        // 원본 visual로 메뉴 대상(노트/그룹)을 식별한다.
-        if (e.ChangedButton == MouseButton.Right)
-            _rightClickOrigin = e.OriginalSource as DependencyObject;
+        _panButton = MouseButton.Middle;
+        _panStart = e.GetPosition(CanvasArea);
+        _panStartTx = CanvasTranslate.X;
+        _panStartTy = CanvasTranslate.Y;
+        _panMoved = true;  // 휠 클릭은 즉시 팬 모드 (다른 용도 없음)
+        CanvasArea.CaptureMouse();
+        CanvasArea.Cursor = Cursors.SizeAll;
+        e.Handled = true;
+    }
 
-        _panButton = e.ChangedButton;
+    /// <summary>
+    /// 우클릭 다운을 터널 단계에서 가로채 노트/그룹 자식 핸들러보다 먼저 pan 후보로 진입.
+    /// 이동 없이 떼면 통합 컨텍스트 메뉴, 4px 임계값 초과면 pan + 메뉴 억제 (기존 _panMoved 로직).
+    /// </summary>
+    private void CanvasArea_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_panButton is not null) return;
+
+        _rightClickOrigin = e.OriginalSource as DependencyObject;
+        _panButton = MouseButton.Right;
         _panStart = e.GetPosition(CanvasArea);
         _panStartTx = CanvasTranslate.X;
         _panStartTy = CanvasTranslate.Y;
         _panMoved = false;
         CanvasArea.CaptureMouse();
-
-        // 휠 클릭은 즉시 팬 모드 (다른 용도 없음)
-        // 우클릭은 임계값 초과 시점부터 팬 시작 → 짧은 클릭은 컨텍스트 메뉴로 유지
-        if (e.ChangedButton == MouseButton.Middle)
-        {
-            _panMoved = true;
-            CanvasArea.Cursor = Cursors.SizeAll;
-            e.Handled = true;
-        }
+        e.Handled = true;
     }
 
     private void CanvasArea_MouseMove(object sender, MouseEventArgs e)

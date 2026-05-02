@@ -79,6 +79,7 @@
               ClipToBounds="True"
               Focusable="True"
               FocusVisualStyle="{x:Null}"
+              PreviewMouseRightButtonDown="CanvasArea_PreviewMouseRightButtonDown"
               MouseRightButtonUp="Canvas_MouseRightButtonUp"
               MouseDown="CanvasArea_MouseDown"
               MouseMove="CanvasArea_MouseMove"

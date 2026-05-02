@@ -253,6 +253,10 @@ public partial class App : Application
 
     private void ExitApp()
     {
+        // 편집 중 TextBox(UpdateSourceTrigger=LostFocus)가 있으면 LostFocus 트리거로
+        // 마지막 키 입력까지 저장. 메인 창이 보이지 않으면 편집 진입 자체가 불가능하므로 스킵.
+        if (_mainWindow is not null && _mainWindow.IsVisible)
+            _mainWindow.FocusCanvas();
         if (_tray is not null)
         {
             _tray.Visible = false;

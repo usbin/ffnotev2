@@ -69,7 +69,7 @@
                                               PreviewMouseLeftButtonDown="TextDisplay_MouseLeftButtonDown"/>
                     <TextBox x:Name="TextEditor"
                              Visibility="Collapsed"
-                             Text="{Binding Content, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Text="{Binding Content, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              AcceptsReturn="True"
                              TextWrapping="Wrap"
                              VerticalScrollBarVisibility="Auto"
