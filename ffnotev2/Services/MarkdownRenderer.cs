@@ -224,7 +224,8 @@ public static class MarkdownRenderer
                 target.Add(new Run(code.Content)
                 {
                     FontFamily = new FontFamily("Consolas, Cascadia Mono, Courier New"),
-                    Background = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+                    // 노트 배경(#2C2C2C)에서 잘 구분되도록 밝고 푸르스름한 회색
+                    Background = new SolidColorBrush(Color.FromRgb(0x3F, 0x4A, 0x5C)),
                 });
                 break;
 
