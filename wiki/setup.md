@@ -1,4 +1,4 @@
-<!-- 최종 수정: 2026-04-30 -->
+<!-- 최종 수정: 2026-05-02 -->
 # 빌드·실행·배포
 
 ## 사용자 (포터블 다운로드)
@@ -44,34 +44,38 @@ dotnet run --project ffnotev2/ffnotev2.csproj
 
 ## 개발자 — 새 버전 배포 (포터블)
 
-릴리스 절차는 단순화: **태그 푸시만**.
+릴리스 절차는 단순화: **태그 푸시만**. csproj의 `<Version>1.0.0</Version>`은 dev 빌드용 placeholder이고, CI가 태그명을 `-p:Version=X.Y.Z`로 오버라이드해서 `AssemblyVersion`/`FileVersion`을 자동 파생시킨다(`<Version>` 변경 불필요).
 
 ```bash
-# 1) 버전 정해서 csproj의 <Version>/<AssemblyVersion>/<FileVersion> 갱신
-# 2) 커밋
-git commit -am "release v0.1.1"
+# 1) 변경사항 커밋
+git commit -am "feat v1.2.3: ..."
+git push origin main
 
-# 3) tag 푸시
-git tag v0.1.1
-git push origin main v0.1.1
+# 2) 태그 push
+git tag v1.2.3
+git push origin v1.2.3
 ```
 
 `v*.*.*` 태그가 푸시되면 `.github/workflows/release.yml`이 자동으로:
 1. .NET 10 + Velopack CLI(`vpk`) 설치
-2. `dotnet publish ... --no-self-contained` (framework-dependent 단일 파일)
+2. `dotnet publish ... --no-self-contained -p:Version=<태그명>` (framework-dependent 단일 파일)
 3. `vpk pack ... --noInst` (포터블 zip만 생성, Setup.exe 미생성)
 4. `vpk upload github` 으로 Release 자동 생성 + 자산 업로드
 
 사용자의 기존 설치는 다음 시작 시 새 버전 다이얼로그를 받음.
 
+CI 빌드 실패 여부는 [GitHub Actions](https://github.com/usbin/ffnotev2/actions) 페이지에서 확인. 자동 업데이트가 안 오면 release artifact 자체가 안 만들어진 것 — 사용자 install된 exe의 파일 버전이 마지막 성공 release에 머물러있다.
+
 ### 로컬 수동 패키지 (Actions 없이 시험용)
 
 ```bash
 dotnet tool install -g vpk
-dotnet publish ffnotev2/ffnotev2.csproj -c Release -r win-x64 --no-self-contained -o publish /p:Version=0.1.1
+dotnet publish ffnotev2/ffnotev2.csproj -c Release -r win-x64 --no-self-contained -o publish -p:Version=0.1.1
 vpk pack -u ffnotev2 -v 0.1.1 -p publish -e ffnotev2.exe --framework net10.0-x64-desktop --noInst
 # → Releases/ 폴더에 ffnotev2-win-Portable.zip 생성
 ```
+
+> bash 환경에서는 `/p:`가 별도 인자로 파싱되는 case가 있어 `-p:` 사용. PowerShell/cmd는 둘 다 OK.
 
 ## 데이터 저장 위치
 
@@ -96,6 +100,6 @@ vpk pack -u ffnotev2 -v 0.1.1 -p publish -e ffnotev2.exe --framework net10.0-x64
 - `UseWPF=true`, `UseWindowsForms=true` (트레이 아이콘용)
 - `AllowUnsafeBlocks=true` (`LibraryImport` source generator)
 - `<Using Remove="System.Windows.Forms" />` (WPF/WinForms `MouseEventArgs` 충돌 방지)
-- `Version` / `AssemblyVersion` / `FileVersion` — 자동 업데이트 비교 기준
+- `<Version>1.0.0</Version>` — dev 빌드 placeholder. CI는 `-p:Version=<태그명>` 오버라이드. `AssemblyVersion`/`FileVersion`은 자동 파생 (명시 X — 명시 시 `-p:Version` 오버라이드가 거기까지 못 미쳐 메타데이터 미스매치 발생)
 - `PublishSingleFile=true`, `RuntimeIdentifier=win-x64`, `SelfContained=false` (포터블 단일 exe)
 - `StartupObject=ffnotev2.App` + `<ApplicationDefinition Remove="App.xaml"/><Page Include="App.xaml"/>` — WPF auto-Main 비활성화하고 명시적 `[STAThread] Main`을 사용 (Velopack 훅이 가장 먼저 실행되도록)

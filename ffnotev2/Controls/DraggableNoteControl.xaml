@@ -67,6 +67,11 @@
                                               VerticalScrollBarVisibility="Hidden"
                                               HorizontalScrollBarVisibility="Disabled"
                                               PreviewMouseLeftButtonDown="TextDisplay_MouseLeftButtonDown"/>
+                    <!-- IsUndoEnabled=False: 한글 자모 결합/분리 시 undo 스택 push가
+                         caret을 (0,0)으로 reset하는 WPF + 한글 IME 알려진 버그 우회.
+                         InputMethod.* 명시 제거: TextBlock↔TextBox 스왑(IsReadOnly 회피)에서
+                         IME 컨텍스트 강제 활성화용이었으나 현재 스왑 구조엔 불필요하고,
+                         명시가 IME 결합 도중 caret 안정성을 해치는 케이스가 있어 제거. -->
                     <TextBox x:Name="TextEditor"
                              Visibility="Collapsed"
                              Text="{Binding Content, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
@@ -78,8 +83,7 @@
                              CaretBrush="#FFEEEEEE"
                              BorderThickness="0"
                              Padding="6"
-                             InputMethod.IsInputMethodEnabled="True"
-                             InputMethod.PreferredImeState="On"
+                             IsUndoEnabled="False"
                              LostFocus="TextEditor_LostFocus"
                              PreviewKeyDown="TextEditor_PreviewKeyDown"/>
                 </Grid>
