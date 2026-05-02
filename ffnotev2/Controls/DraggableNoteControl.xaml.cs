@@ -6,6 +6,8 @@ using System.Windows.Input;
 using System.Windows.Navigation;
 using System.Windows.Threading;
 using ffnotev2.Models;
+using ffnotev2.Services;
+using Application = System.Windows.Application;
 using Point = System.Windows.Point;
 
 namespace ffnotev2.Controls;
@@ -30,23 +32,62 @@ public partial class DraggableNoteControl : UserControl
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        Unloaded += OnUnloaded;
     }
+
+    private static SettingsService? CurrentSettings =>
+        (Application.Current as App)?.SettingsService;
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (e.OldValue is NoteItem old) old.PropertyChanged -= OnItemPropertyChanged;
         if (e.NewValue is NoteItem fresh) fresh.PropertyChanged += OnItemPropertyChanged;
+        RefreshDocument();
     }
 
     private void OnItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        // 외부에서 IsEditing=true 설정 시 (방향키 이동, Enter 등) 이미 로드된 컨트롤도 편집 모드로 진입
-        // 텍스트 외 타입은 BeginEdit를 무시하지만 플래그는 항상 리셋해 stuck 방지
         if (e.PropertyName == nameof(NoteItem.IsEditing) && Item?.IsEditing == true)
         {
+            // 외부에서 IsEditing=true 설정 시 (방향키 이동, Enter 등) 이미 로드된 컨트롤도 편집 모드로 진입
+            // 텍스트 외 타입은 BeginEdit를 무시하지만 플래그는 항상 리셋해 stuck 방지
             Item.IsEditing = false;
             if (Item.Type == NoteType.Text) BeginEdit();
         }
+        else if (e.PropertyName == nameof(NoteItem.Content))
+        {
+            // 표시 모드일 때만 갱신 (편집 중엔 매 키스트로크마다 다시 그릴 필요 없음)
+            if (TextEditor.Visibility != Visibility.Visible) RefreshDocument();
+        }
+    }
+
+    private void OnSettingsChanged(object? sender, EventArgs e)
+    {
+        ApplyEditorFont();
+        RefreshDocument();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (CurrentSettings is { } svc) svc.SettingsChanged -= OnSettingsChanged;
+    }
+
+    private void RefreshDocument()
+    {
+        if (Item is null || Item.Type != NoteType.Text) return;
+        var settings = CurrentSettings?.Settings;
+        var fontFamily = settings?.NoteFontFamily ?? "Segoe UI";
+        var fontSize = settings?.NoteFontSize ?? 13;
+        var imageBase = App.MainVM.ImagesDirectory;
+        TextDisplayScroll.Document = MarkdownRenderer.Render(Item.Content ?? string.Empty, fontFamily, fontSize, imageBase);
+    }
+
+    private void ApplyEditorFont()
+    {
+        var settings = CurrentSettings?.Settings;
+        if (settings is null) return;
+        TextEditor.FontFamily = new System.Windows.Media.FontFamily(settings.NoteFontFamily);
+        TextEditor.FontSize = settings.NoteFontSize;
     }
 
     private NoteItem? Item => DataContext as NoteItem;
@@ -219,6 +260,14 @@ public partial class DraggableNoteControl : UserControl
 
     private void UserControl_Loaded(object sender, RoutedEventArgs e)
     {
+        if (CurrentSettings is { } svc)
+        {
+            svc.SettingsChanged -= OnSettingsChanged;  // 중복 구독 방지
+            svc.SettingsChanged += OnSettingsChanged;
+        }
+        ApplyEditorFont();
+        RefreshDocument();
+
         // 새로 생성된 노트는 IsEditing=true로 만들어져서 자동으로 편집 모드로 진입
         if (Item is { IsEditing: true, Type: NoteType.Text })
         {
@@ -312,6 +361,7 @@ public partial class DraggableNoteControl : UserControl
         TextDisplayScroll.Visibility = Visibility.Visible;
         if (Item is not null)
             App.MainVM.UpdateNoteContent(Item);
+        RefreshDocument();  // 편집 중엔 갱신을 미뤘으므로 표시 복귀 시점에 한 번 갱신
     }
 
     private void TextEditor_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -321,6 +371,28 @@ public partial class DraggableNoteControl : UserControl
             // ESC로 편집 종료. CanvasArea(Focusable=True)에 포커스를 옮겨 LostFocus 트리거 +
             // 이후 화살표가 Window_PreviewKeyDown에 도달하도록 함
             if (Window.GetWindow(this) is MainWindow mw) mw.FocusCanvas();
+            e.Handled = true;
+            return;
+        }
+
+        // Ctrl+V: 클립보드에 이미지가 있으면 파일 저장 + 마크다운 ![](파일명) 캐럿 위치에 삽입.
+        // 이미지가 없으면 e.Handled=false로 양보 → TextBox 기본 텍스트 붙여넣기 동작
+        if (e.Key == Key.V && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            var savedPath = App.MainVM.SaveClipboardImageIfPresent();
+            if (savedPath is null) return;
+
+            var fileName = System.IO.Path.GetFileName(savedPath);
+            var insert = $"![]({fileName})";
+
+            var caret = TextEditor.CaretIndex;
+            var text = TextEditor.Text ?? string.Empty;
+            var prefix = (caret > 0 && text[caret - 1] != '\n') ? "\n" : "";
+            var suffix = (caret < text.Length && text[caret] != '\n') ? "\n" : "";
+            var combined = prefix + insert + suffix;
+
+            TextEditor.Text = text.Insert(caret, combined);
+            TextEditor.CaretIndex = caret + combined.Length;
             e.Handled = true;
         }
         // Alt+방향키 노트 이동은 Window_PreviewKeyDown에서 통합 처리

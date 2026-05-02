@@ -27,6 +27,7 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <Grid Grid.Row="0" Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
@@ -68,6 +69,8 @@
                 </ListBox>
                 <Button Grid.Row="2" Content="+ 노트북 추가" Margin="0,8,0,0" Padding="6"
                         Command="{Binding CreateNotebookCommand}"/>
+                <Button Grid.Row="3" Content="폰트 설정" Margin="0,4,0,0" Padding="6"
+                        Click="FontSettings_Click"/>
             </Grid>
         </Border>
 

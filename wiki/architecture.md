@@ -1,4 +1,4 @@
-<!-- 최종 수정: 2026-04-30 -->
+<!-- 최종 수정: 2026-05-02 -->
 # 아키텍처
 
 ## 디렉터리 구조
@@ -23,14 +23,20 @@ ffnotev2/
       DatabaseService.cs              ← SQLite CRUD
       GameDetectionService.cs         ← 프로세스 모니터링
       HotkeyService.cs                ← Win32 전역 단축키 (LibraryImport)
-      SettingsService.cs              ← settings.json 로드/저장
+      SettingsService.cs              ← settings.json 로드/저장 + SettingsChanged 이벤트
       AutoStartService.cs             ← HKCU\...\Run 레지스트리 R/W (Windows 자동 실행)
+      UndoService.cs                  ← LIFO Undo/Redo + 액션 클래스
+      UpdateService.cs                ← Velopack GitHub Releases 업데이트 체크
+      MarkdownRenderer.cs             ← Markdig + Emoji.Wpf로 마크다운 → FlowDocument
     Controls/
-      DraggableNoteControl.xaml/.cs   ← 드래그/리사이즈 가능, 텍스트는 TextBlock↔TextBox 스왑
+      DraggableNoteControl.xaml/.cs   ← 드래그/리사이즈, 텍스트는 FlowDocumentScrollViewer↔TextBox 스왑
+      GroupBoxControl.xaml/.cs        ← 그룹 박스 (헤더 드래그 + bbox 리사이즈)
     Dialogs/
       GamePickerDialog.xaml/.cs       ← 게임 프로세스 선택
       RenameDialog.xaml/.cs           ← 노트북 이름 변경
-      HotkeySettingsDialog.xaml/.cs   ← 단축키 3개 캡처/저장
+      HotkeySettingsDialog.xaml/.cs   ← 단축키 3개 + 노트북 전환 10개 캡처/저장
+      GroupDeleteDialog.xaml/.cs      ← 그룹 삭제 시 멤버 처리 선택
+      FontSettingsDialog.xaml/.cs     ← 텍스트 노트 폰트·크기 설정
     Converters/
       NoteTypeToVisibilityConverter.cs
       PathToImageConverter.cs

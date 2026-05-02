@@ -37,6 +37,8 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.7" />
     <PackageReference Include="Velopack" Version="0.0.*" />
+    <PackageReference Include="Markdig" Version="0.42.0" />
+    <PackageReference Include="Emoji.Wpf" Version="0.3.4" />
   </ItemGroup>
 
 </Project>

@@ -33,4 +33,7 @@ public class AppSettings
 
     public double OverlayLeft { get; set; } = 40;
     public double OverlayTop { get; set; } = 40;
+
+    public string NoteFontFamily { get; set; } = "Segoe UI";
+    public double NoteFontSize { get; set; } = 13;
 }

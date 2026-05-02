@@ -1,5 +1,9 @@
-<!-- 최종 수정: 2026-04-30 -->
+<!-- 최종 수정: 2026-05-02 -->
 # 개발 노트
+
+## 최근 변경 (2026-05-02)
+
+- **텍스트 노트 마크다운 렌더링 + 컬러 이모지 + 이미지 임베드 + 폰트 설정**: 표시 측 `TextBlock`을 `FlowDocumentScrollViewer`로 교체하고 `Services/MarkdownRenderer`(Markdig 0.42 + Emoji.Wpf 0.3.4)가 raw 마크다운을 `FlowDocument`로 변환. H1~H6, 불릿/번호 리스트, 코드 블록(회색 배경 Consolas), 인라인 코드, 강조, 링크, `![](...)` 이미지 임베드 지원. soft line break도 `LineBreak`으로 변환해 평문 노트 호환. 이모지 codepoint는 `Emoji.Wpf.EmojiInline`(InlineUIContainer 상속, Twemoji 컬러 이미지)로 분할 — ZWJ/skin tone modifier/variation selector를 묶어 한 inline으로 처리. 편집 측은 raw 마크다운 그대로 입력하는 `TextBox`(기존 IME 회피 구조 유지). 편집 중 `Ctrl+V`로 클립보드에 이미지가 있으면 `%APPDATA%\ffnotev2\images\{guid}.png`로 저장 후 `![](파일명)` 마크다운을 캐럿 위치에 자동 삽입(텍스트만 있으면 양보). `MainViewModel.SaveClipboardImageIfPresent()`/`ImagesDirectory`로 노출. `AppSettings`에 `NoteFontFamily`/`NoteFontSize` 추가, 사이드바 "폰트 설정" 버튼 + `Dialogs/FontSettingsDialog`(시스템 폰트 콤보 + 9~28 슬라이더 + 미리보기). 저장 시 `SettingsService.Save()` → `SettingsChanged` 이벤트 → 모든 `DraggableNoteControl`이 `OnSettingsChanged`로 RefreshDocument + ApplyEditorFont. `NoteItem.PropertyChanged`에 Content 구독 추가했지만 편집 중에는 `TextEditor.Visibility != Visible` 가드로 매 키스트로크 갱신을 스킵, 편집 종료(`LostFocus`) 시 1회 갱신.
 
 ## 최근 변경 (2026-04-30)
 
@@ -44,6 +48,8 @@
 - **전체화면 배타 게임 위 표시 불가**: WPF `AllowsTransparency=True`는 윈도우 모드/보더리스에서만 보장
 - **캔버스 뷰 상태(pan/zoom) 비저장**: 앱 재시작 시 zoom=1, translate=0으로 초기화 — 노트가 음수 좌표에 있으면 안 보일 수 있음
 - **리사이즈 누적 오차**: `ResizeThumb_DragDelta`가 마지막 프레임 변화량만 누적해 스냅하므로 세션 동안 마우스와 약간 어긋날 수 있음(10px 격자라 체감 미미)
+- **마크다운 편집 모드는 컬러 이모지 미적용**: TextBox는 inline 객체를 못 담으므로 raw 편집 시엔 시스템 기본(흑백) 그대로. 표시(FlowDocument) 모드에서만 컬러 이모지
+- **이모지 codepoint 판별 휴리스틱**: `MarkdownRenderer.IsEmojiCodepoint`는 주요 유니코드 이모지 블록만 매칭. Unicode 16+ 신규 이모지는 누락될 수 있음 → 필요 시 범위 확장
 
 ## TODO (다음 작업 후보)
 
@@ -116,7 +122,9 @@
 - **타이틀바만 드래그 가능**: 텍스트 노트 내용을 선택·복사할 수 있어야 하므로 콘텐츠 영역은 드래그에서 제외
 - **`LibraryImport` 사용**: .NET 10에서 P/Invoke 표준. `DllImport`보다 trim/AOT 친화적이고 빌드 경고 없음. 단, `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>` 필요
 - **`ShutdownMode=OnExplicitShutdown` + 닫기 가로채기**: 메인 창을 닫아도 앱이 살아있어야 트레이/단축키가 유지됨. `MainWindow.OnClosing`에서 `e.Cancel = true; Hide()`
-- **노트 텍스트는 TextBlock(표시) ↔ TextBox(편집) 스왑**: WPF `TextBox.IsReadOnly` 토글 시 IMM 컨텍스트가 분리된 채 재연결되지 않아 한글이 자모 분리되는 알려진 버그. 표시·편집을 별도 컨트롤로 분리해 IsReadOnly 전환 자체를 제거
+- **노트 텍스트는 FlowDocumentScrollViewer(표시·마크다운) ↔ TextBox(편집·raw) 스왑**: WPF `TextBox.IsReadOnly` 토글 시 IMM 컨텍스트가 분리된 채 재연결되지 않아 한글이 자모 분리되는 알려진 버그. 표시·편집을 별도 컨트롤로 분리해 IsReadOnly 전환 자체를 제거. 표시 측은 TextBlock에서 FlowDocumentScrollViewer로 격상되어 마크다운 렌더링과 컬러 이모지를 지원
+- **마크다운 렌더링은 FlowDocument 직접 변환 (WebView2 미사용)**: 게임 위 다수 노트가 핵심 UX라 가벼움이 중요. 노트마다 WebView2를 띄우면 메모리·시작 지연 부담. Markdig AST를 직접 visitor로 FlowDocument 블록/inline에 매핑. soft line break도 hard로 처리해 평문 노트 호환 유지
+- **컬러 이모지는 Emoji.Wpf**: WPF는 .NET 10까지도 Segoe UI Emoji의 컬러 글리프를 직접 렌더하지 못함. `Emoji.Wpf.EmojiInline`(`InlineUIContainer` 상속)이 codepoint를 Twemoji 이미지로 치환. `MarkdownRenderer.AppendTextWithEmoji`가 surrogate pair 단위 스캔으로 ZWJ/skin tone modifier/variation selector를 묶어 한 inline으로 처리
 - **글로벌 단축키 사용자 설정**: `%APPDATA%\ffnotev2\settings.json`에 저장. 트레이 메뉴 → "단축키 설정" → 캡처 박스에서 키 조합 입력. 저장 시 `MainWindow.ReregisterHotkeys()`가 `HotkeyService.UnregisterAll()` 후 재등록
 - **오버레이 초안 자동 저장**: `OverlayViewModel.OnQuickNoteTextChanged` partial 메서드에서 매 글자 변경 시 `SettingsService.Save()`. JSON 작은 파일이라 IO 부담 미미. 필요 시 디바운싱 추가 가능
 - **Pan/Zoom은 `ItemsControl.RenderTransform`에 적용**: ItemsPanel(Canvas)가 아닌 ItemsControl 자체에 적용. `Canvas.ClipToBounds=False`로 노트가 영역 밖에서도 렌더, 부모 `CanvasArea.ClipToBounds=True`로 column 경계에서 자른다. `e.GetPosition(canvas)`는 RenderTransform과 무관하게 캔버스 로컬(world) 좌표를 반환하므로 드래그 로직은 그대로 동작

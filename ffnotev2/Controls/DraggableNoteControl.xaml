@@ -58,19 +58,15 @@
                         </Style.Triggers>
                     </Style>
                 </Grid.Style>
-                <!-- 텍스트: 표시(TextBlock)와 편집(TextBox)을 스왑해서 IME 컨텍스트 버그 회피 -->
+                <!-- 텍스트: 표시(FlowDocument 마크다운)와 편집(TextBox raw)을 스왑해서 IME 컨텍스트 버그 회피.
+                     TextDisplayScroll(FlowDocumentScrollViewer)는 코드비하인드에서 Document를 갱신. -->
                 <Grid Visibility="{Binding Type, Converter={StaticResource TypeVis}, ConverterParameter=Text}">
-                    <ScrollViewer x:Name="TextDisplayScroll"
-                                  VerticalScrollBarVisibility="Hidden"
-                                  HorizontalScrollBarVisibility="Disabled"
-                                  Padding="6"
-                                  CanContentScroll="False">
-                        <TextBlock x:Name="TextDisplay"
-                                   Text="{Binding Content}"
-                                   Foreground="#FFEEEEEE"
-                                   TextWrapping="Wrap"
-                                   MouseLeftButtonDown="TextDisplay_MouseLeftButtonDown"/>
-                    </ScrollViewer>
+                    <FlowDocumentScrollViewer x:Name="TextDisplayScroll"
+                                              IsToolBarVisible="False"
+                                              Background="Transparent"
+                                              VerticalScrollBarVisibility="Hidden"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              PreviewMouseLeftButtonDown="TextDisplay_MouseLeftButtonDown"/>
                     <TextBox x:Name="TextEditor"
                              Visibility="Collapsed"
                              Text="{Binding Content, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"

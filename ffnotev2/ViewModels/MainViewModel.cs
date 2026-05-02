@@ -722,6 +722,29 @@ public partial class MainViewModel : ObservableObject
         return path;
     }
 
+    /// <summary>
+    /// 클립보드에 이미지가 있으면 파일로 저장하고 절대경로를 반환. 텍스트 노트 편집 중
+    /// Ctrl+V에서 호출되어 마크다운 이미지 임베드용으로 쓰임.
+    /// </summary>
+    internal string? SaveClipboardImageIfPresent()
+    {
+        try
+        {
+            var dataObject = Clipboard.GetDataObject();
+            if (dataObject is null) return null;
+            var bmp = TryGetClipboardImage(dataObject);
+            if (bmp is null) return null;
+            return SaveImageToFile(bmp);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>이미지 베이스 디렉토리 (마크다운 이미지 경로 해석에 사용)</summary>
+    public string ImagesDirectory => _db.ImagesDirectory;
+
     private static void TryDeleteFile(string path)
     {
         try

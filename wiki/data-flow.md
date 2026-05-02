@@ -1,4 +1,4 @@
-<!-- 최종 수정: 2026-04-30 -->
+<!-- 최종 수정: 2026-05-02 -->
 # 데이터 흐름
 
 ## 붙여넣기 (Ctrl+V)
@@ -32,24 +32,45 @@
 
 새 노트 생성 좌표(`AddTextNote/AddImageNote/AddLinkNote`)도 진입부에서 `Snap()` 적용 — 클립보드 붙여넣기·우클릭 메뉴·오버레이 빠른 입력 모두 자동 정렬.
 
-## 텍스트 편집 (TextBlock ↔ TextBox 스왑) + 즉시 저장
+## 텍스트 편집 (FlowDocument 마크다운 ↔ TextBox raw 스왑) + 즉시 저장
 
 ```
-표시 모드: TextBlock (선택 불가, 단순 표시)
-  → 더블클릭(ClickCount==2) 또는 새로 생성 시 자동(IsEditing=true)
-  → BeginEdit(): TextBlock.Visibility=Collapsed, TextBox.Visibility=Visible
+표시 모드: FlowDocumentScrollViewer (마크다운 렌더링: H1~H6/리스트/코드블록/이미지/링크/컬러 이모지)
+  → MarkdownRenderer.Render(content, fontFamily, fontSize, imagesDir) → FlowDocument
+  → 더블클릭(ClickCount==2, PreviewMouseLeftButtonDown) 또는 새로 생성 시 자동(IsEditing=true)
+  → BeginEdit(): FlowDocumentScrollViewer.Visibility=Collapsed, TextBox.Visibility=Visible
   → Dispatcher.BeginInvoke(Input)로 Keyboard.Focus(TextBox), 캐럿을 끝으로
-편집 중: TextBox (IME 컨텍스트 정상 — IsReadOnly 토글 회피)
+편집 중: TextBox (raw 마크다운, IME 컨텍스트 정상 — IsReadOnly 토글 회피)
   → 키 입력마다 (UpdateSourceTrigger=PropertyChanged)
        Item.Content 즉시 갱신
        → NoteItem.PropertyChanged → MainViewModel.OnNotePropertyChanged
        → e.PropertyName == nameof(Content)면 _db.UpdateNote(note) 즉시 저장
+       (DraggableNoteControl도 같은 PropertyChanged를 구독하지만 편집 중엔
+        TextEditor.Visibility==Visible 가드로 RefreshDocument 스킵)
   → ESC 또는 다른 곳 클릭 (LostFocus)
-  → TextBox.Visibility=Collapsed, TextBlock.Visibility=Visible
-  → 추가로 한 번 더 UpdateNoteContent() 호출 (defense in depth)
+       TextBox.Visibility=Collapsed, FlowDocumentScrollViewer.Visibility=Visible
+       UpdateNoteContent() 호출 (defense in depth) + RefreshDocument()로 1회 갱신
+
+편집 중 Ctrl+V (TextEditor_PreviewKeyDown):
+  → MainViewModel.SaveClipboardImageIfPresent()  (PNG/DIB/Clipboard.GetImage 시도)
+  → 이미지 있으면: %APPDATA%\ffnotev2\images\{guid}.png 저장
+       캐럿 위치에 "![](파일명)" 마크다운 삽입(앞뒤 줄바꿈 자동) + e.Handled=true
+  → 텍스트만 있으면 e.Handled=false → TextBox 기본 붙여넣기 동작
 ```
 
 키 입력 단위로 DB에 반영되므로 사용자가 트레이 종료/창 닫기를 해도 마지막 글자까지 보존됨.
+
+## 폰트 설정 변경 (전역 단일)
+
+```
+사이드바 "폰트 설정" 버튼
+  → MainWindow.FontSettings_Click
+  → FontSettingsDialog (시스템 폰트 콤보 + 9~28 슬라이더 + 미리보기)
+  → 저장 시 AppSettings.NoteFontFamily/NoteFontSize 갱신
+  → SettingsService.Save() → SettingsChanged 이벤트 발생
+  → 모든 DraggableNoteControl이 OnSettingsChanged 수신
+  → ApplyEditorFont() (TextEditor의 FontFamily/FontSize) + RefreshDocument() (FlowDocument 재생성)
+```
 
 ## 새 노트 자동 편집 진입
 
