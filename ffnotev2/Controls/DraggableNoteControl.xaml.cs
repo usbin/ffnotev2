@@ -42,7 +42,8 @@ public partial class DraggableNoteControl : UserControl
     {
         if (e.OldValue is NoteItem old) old.PropertyChanged -= OnItemPropertyChanged;
         if (e.NewValue is NoteItem fresh) fresh.PropertyChanged += OnItemPropertyChanged;
-        RefreshDocument();
+        // RefreshDocument는 Loaded 시점에서만 호출 — DataContextChanged 시점은 아직 visual tree
+        // 부착 전이라 FlowDocument 할당이 불안정할 수 있음. Loaded 이후 PropertyChanged(Content)로 추적.
     }
 
     private void OnItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -98,7 +99,7 @@ public partial class DraggableNoteControl : UserControl
         while (d is not null)
         {
             if (d is TextBox) return true;
-            d = System.Windows.Media.VisualTreeHelper.GetParent(d);
+            d = VisualTreeWalker.GetAnyParent(d);
         }
         return false;
     }
@@ -108,7 +109,7 @@ public partial class DraggableNoteControl : UserControl
         DependencyObject? cur = this;
         while (cur is not null)
         {
-            cur = System.Windows.Media.VisualTreeHelper.GetParent(cur);
+            cur = VisualTreeWalker.GetAnyParent(cur);
             if (cur is Canvas canvas) return canvas;
         }
         return null;
@@ -233,7 +234,7 @@ public partial class DraggableNoteControl : UserControl
         while (d is not null)
         {
             if (ReferenceEquals(d, BodyArea)) return true;
-            d = System.Windows.Media.VisualTreeHelper.GetParent(d);
+            d = VisualTreeWalker.GetAnyParent(d);
         }
         return false;
     }
@@ -241,8 +242,11 @@ public partial class DraggableNoteControl : UserControl
     private void TextDisplay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ClickCount != 2) return;
-        BeginEdit();
         e.Handled = true;
+        // FlowDocumentScrollViewer는 자체 mouse/selection 상태를 관리하므로 PreviewMouseLeftButtonDown
+        // 라우팅 도중 Visibility=Collapsed로 컨트롤을 사라지게 만들면 후속 라우팅이 깨질 수 있음.
+        // 이벤트 루프가 끝난 다음 사이클에서 BeginEdit를 실행해 안전하게 모드 전환.
+        Dispatcher.BeginInvoke(new Action(BeginEdit), DispatcherPriority.Input);
     }
 
     private void BeginEdit()

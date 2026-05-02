@@ -27,7 +27,7 @@ public partial class GroupBoxControl : UserControl
         DependencyObject? cur = this;
         while (cur is not null)
         {
-            cur = System.Windows.Media.VisualTreeHelper.GetParent(cur);
+            cur = ffnotev2.Services.VisualTreeWalker.GetAnyParent(cur);
             if (cur is Canvas canvas) return canvas;
         }
         return null;

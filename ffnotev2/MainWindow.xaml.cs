@@ -368,7 +368,7 @@ public partial class MainWindow : Window
         while (d is not null)
         {
             if (d is Controls.DraggableNoteControl dn && dn.DataContext is Models.NoteItem n) return n;
-            d = VisualTreeHelper.GetParent(d);
+            d = VisualTreeWalker.GetAnyParent(d);
         }
         return null;
     }
@@ -379,7 +379,7 @@ public partial class MainWindow : Window
         while (d is not null)
         {
             if (d is ListBox or ListBoxItem) return true;
-            d = VisualTreeHelper.GetParent(d);
+            d = VisualTreeWalker.GetAnyParent(d);
         }
         return false;
     }
@@ -532,7 +532,7 @@ public partial class MainWindow : Window
         {
             if (d is Controls.DraggableNoteControl) return true;
             if (d is Controls.GroupBoxControl) return true;
-            d = VisualTreeHelper.GetParent(d);
+            d = VisualTreeWalker.GetAnyParent(d);
         }
         return false;
     }
@@ -685,7 +685,7 @@ public partial class MainWindow : Window
         while (d is not null)
         {
             if (d is Controls.GroupBoxControl gc && gc.DataContext is Models.NoteGroup g) return g;
-            d = VisualTreeHelper.GetParent(d);
+            d = VisualTreeWalker.GetAnyParent(d);
         }
         return null;
     }

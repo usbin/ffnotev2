@@ -130,7 +130,7 @@ public partial class OverlayWindow : Window
         while (d is not null)
         {
             if (d is TextBox) return;
-            d = VisualTreeHelper.GetParent(d);
+            d = ffnotev2.Services.VisualTreeWalker.GetAnyParent(d);
         }
 
         ShowOpacityMenu();
