@@ -367,11 +367,16 @@ public static class MarkdownRenderer
                     else break;
                 }
                 var emojiText = text.Substring(start, i - start);
-                target.Add(new EmojiWpf.EmojiInline
+                var emoji = new EmojiWpf.EmojiInline
                 {
                     Text = emojiText,
                     FontSize = baseFontSize,
-                });
+                };
+                // Emoji.Wpf의 TintEffect가 부모 Run/Paragraph의 Foreground(흰색)를
+                // 이모지 픽셀에 tint로 입혀 모든 이모지가 흰색으로 보이는 문제 회피.
+                // 내부 Child(Image)의 Effect를 명시적으로 제거.
+                if (emoji.Child is UIElement child) child.Effect = null;
+                target.Add(emoji);
             }
             else
             {
