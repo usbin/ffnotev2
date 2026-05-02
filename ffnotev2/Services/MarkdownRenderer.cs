@@ -137,14 +137,21 @@ public static class MarkdownRenderer
             {
                 var converted = ConvertBlock(sub, baseFontSize, imageBaseDir);
                 if (converted is null) continue;
-                if (!markerInjected && converted is Paragraph p)
+                if (!markerInjected)
                 {
-                    p.Margin = new Thickness(0, 1, 0, 1);
-                    if (p.Inlines.FirstInline is not null)
-                        p.Inlines.InsertBefore(p.Inlines.FirstInline, new Run(marker));
-                    else
-                        p.Inlines.Add(new Run(marker));
-                    markerInjected = true;
+                    // ListItem의 첫 자식이 nested ListBlock(예: '- 1.'에서 '- '의 첫 자식이 ordered list)이면
+                    // 변환된 결과가 Section. 그 Section의 첫 paragraph를 찾아 outer marker를 prepend해
+                    // outer marker와 nested marker가 한 줄에 인라인으로 보이게 함.
+                    var firstP = converted as Paragraph ?? FindFirstParagraph(converted);
+                    if (firstP is not null)
+                    {
+                        firstP.Margin = new Thickness(0, 1, 0, 1);
+                        if (firstP.Inlines.FirstInline is not null)
+                            firstP.Inlines.InsertBefore(firstP.Inlines.FirstInline, new Run(marker));
+                        else
+                            firstP.Inlines.Add(new Run(marker));
+                        markerInjected = true;
+                    }
                 }
                 sec.Blocks.Add(converted);
             }
@@ -154,6 +161,34 @@ public static class MarkdownRenderer
             idx++;
         }
         return sec;
+    }
+
+    /// <summary>
+    /// Block 트리에서 처음 나오는 Paragraph를 깊이 우선 탐색으로 반환. nested Section/List 등을 따라 내려감.
+    /// </summary>
+    private static Paragraph? FindFirstParagraph(System.Windows.Documents.Block? block)
+    {
+        switch (block)
+        {
+            case null: return null;
+            case Paragraph p: return p;
+            case Section s:
+                foreach (var b in s.Blocks)
+                {
+                    var f = FindFirstParagraph(b);
+                    if (f is not null) return f;
+                }
+                return null;
+            case List lst:
+                foreach (var li in lst.ListItems)
+                    foreach (var b in li.Blocks)
+                    {
+                        var f = FindFirstParagraph(b);
+                        if (f is not null) return f;
+                    }
+                return null;
+            default: return null;
+        }
     }
 
     private static Paragraph BuildCodeBlock(string code)

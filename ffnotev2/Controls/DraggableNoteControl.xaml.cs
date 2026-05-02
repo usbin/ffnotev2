@@ -241,12 +241,16 @@ public partial class DraggableNoteControl : UserControl
 
     private void TextDisplay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ClickCount != 2) return;
+        // FlowDocumentScrollViewer 자체 selection 시작 차단 — 단순 클릭에서 마지막 글자가
+        // 자동 선택되어 파란 하이라이트 잔존하는 문제 회피. 본문 드래그/노트 선택은 부모
+        // UserControl_PreviewMouseLeftButtonDown(이미 fire됨)이 처리하므로 자식 라우팅 차단해도 OK.
+        // 표시 모드의 텍스트 선택/복사는 정책상 비활성(이전 TextBlock 동작과 동일).
         e.Handled = true;
-        // FlowDocumentScrollViewer는 자체 mouse/selection 상태를 관리하므로 PreviewMouseLeftButtonDown
-        // 라우팅 도중 Visibility=Collapsed로 컨트롤을 사라지게 만들면 후속 라우팅이 깨질 수 있음.
-        // 이벤트 루프가 끝난 다음 사이클에서 BeginEdit를 실행해 안전하게 모드 전환.
-        Dispatcher.BeginInvoke(new Action(BeginEdit), DispatcherPriority.Input);
+        if (e.ClickCount == 2)
+        {
+            // 라우팅 도중 Visibility 토글이 후속 라우팅을 깨뜨릴 수 있어 다음 사이클로 미룸
+            Dispatcher.BeginInvoke(new Action(BeginEdit), DispatcherPriority.Input);
+        }
     }
 
     private void BeginEdit()

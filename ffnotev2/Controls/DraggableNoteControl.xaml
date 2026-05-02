@@ -61,12 +61,26 @@
                 <!-- 텍스트: 표시(FlowDocument 마크다운)와 편집(TextBox raw)을 스왑해서 IME 컨텍스트 버그 회피.
                      TextDisplayScroll(FlowDocumentScrollViewer)는 코드비하인드에서 Document를 갱신. -->
                 <Grid Visibility="{Binding Type, Converter={StaticResource TypeVis}, ConverterParameter=Text}">
+                    <!-- Cursor Style + DataTrigger: FlowDocumentScrollViewer 기본 IBeam 커서가
+                         부모 BodyArea의 DataTrigger Cursor=SizeAll을 가리는 문제 해결.
+                         IsSelected=true면 SizeAll, 아니면 Arrow. -->
                     <FlowDocumentScrollViewer x:Name="TextDisplayScroll"
                                               IsToolBarVisible="False"
                                               Background="Transparent"
                                               VerticalScrollBarVisibility="Hidden"
                                               HorizontalScrollBarVisibility="Disabled"
-                                              PreviewMouseLeftButtonDown="TextDisplay_MouseLeftButtonDown"/>
+                                              PreviewMouseLeftButtonDown="TextDisplay_MouseLeftButtonDown">
+                        <FlowDocumentScrollViewer.Style>
+                            <Style TargetType="FlowDocumentScrollViewer">
+                                <Setter Property="Cursor" Value="Arrow"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                        <Setter Property="Cursor" Value="SizeAll"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </FlowDocumentScrollViewer.Style>
+                    </FlowDocumentScrollViewer>
                     <!-- IsUndoEnabled=False: 한글 자모 결합/분리 시 undo 스택 push가
                          caret을 (0,0)으로 reset하는 WPF + 한글 IME 알려진 버그 우회.
                          InputMethod.* 명시 제거: TextBlock↔TextBox 스왑(IsReadOnly 회피)에서
