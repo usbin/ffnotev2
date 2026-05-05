@@ -387,6 +387,16 @@ public partial class DraggableNoteControl : UserControl
             return;
         }
 
+        // Tab / Shift+Tab: 들여쓰기 / 내어쓰기. 기본 동작(포커스 이동)을 가로채야 하므로
+        // AcceptsTab과 무관하게 PreviewKeyDown에서 처리. 단위는 공백 4칸.
+        if (e.Key == Key.Tab)
+        {
+            bool outdent = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+            HandleIndent(outdent);
+            e.Handled = true;
+            return;
+        }
+
         // Ctrl+V: 클립보드에 이미지가 있으면 파일 저장 + 마크다운 ![](파일명) 캐럿 위치에 삽입.
         // 이미지가 없으면 e.Handled=false로 양보 → TextBox 기본 텍스트 붙여넣기 동작
         if (e.Key == Key.V && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
@@ -408,6 +418,105 @@ public partial class DraggableNoteControl : UserControl
             e.Handled = true;
         }
         // Alt+방향키 노트 이동은 Window_PreviewKeyDown에서 통합 처리
+    }
+
+    private const string IndentUnit = "    ";
+
+    // Tab / Shift+Tab 들여쓰기 처리.
+    // - 캐럿만 있고 indent: 캐럿 위치에 4칸 삽입
+    // - 단일 줄 selection + indent: selection 자리를 4칸으로 치환
+    // - 그 외(다중 줄 selection / outdent): 영향받는 줄 머리에서 일괄 추가/제거
+    //   outdent는 줄 시작의 공백을 최대 4칸까지, 또는 선두 탭 1개 제거
+    private void HandleIndent(bool outdent)
+    {
+        var text = TextEditor.Text ?? string.Empty;
+        int selStart = TextEditor.SelectionStart;
+        int selLen = TextEditor.SelectionLength;
+        int selEnd = selStart + selLen;
+        bool multiLine = selLen > 0 && text.AsSpan(selStart, selLen).IndexOf('\n') >= 0;
+
+        if (!outdent && selLen == 0)
+        {
+            TextEditor.Text = text.Insert(selStart, IndentUnit);
+            TextEditor.CaretIndex = selStart + IndentUnit.Length;
+            return;
+        }
+        if (!outdent && !multiLine)
+        {
+            TextEditor.Text = text.Substring(0, selStart) + IndentUnit + text.Substring(selEnd);
+            TextEditor.CaretIndex = selStart + IndentUnit.Length;
+            return;
+        }
+
+        // 줄 단위 모드: 영향 영역을 줄 경계로 확장
+        int regionStart = LineStart(text, selStart);
+        // selection이 줄 시작 지점에서 끝나면(직전이 \n) 그 빈 줄은 포함하지 않음
+        int probeEnd = selLen == 0
+            ? selStart
+            : (selEnd > selStart && text[selEnd - 1] == '\n' ? selEnd - 1 : selEnd);
+        int regionEnd = LineEnd(text, probeEnd);
+
+        string before = text.Substring(0, regionStart);
+        string region = text.Substring(regionStart, regionEnd - regionStart);
+        string after = text.Substring(regionEnd);
+
+        var lines = region.Split('\n');
+        int firstLineDelta = 0;
+        int totalDelta = 0;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            int delta;
+            if (outdent)
+            {
+                int remove = 0;
+                if (line.Length > 0 && line[0] == '\t')
+                {
+                    remove = 1;
+                }
+                else
+                {
+                    for (int j = 0; j < IndentUnit.Length && j < line.Length && line[j] == ' '; j++)
+                        remove++;
+                }
+                lines[i] = line.Substring(remove);
+                delta = -remove;
+            }
+            else
+            {
+                lines[i] = IndentUnit + line;
+                delta = IndentUnit.Length;
+            }
+            if (i == 0) firstLineDelta = delta;
+            totalDelta += delta;
+        }
+
+        TextEditor.Text = before + string.Join('\n', lines) + after;
+
+        if (selLen == 0)
+        {
+            TextEditor.CaretIndex = Math.Max(regionStart, selStart + firstLineDelta);
+        }
+        else
+        {
+            int newStart = Math.Max(regionStart, selStart + firstLineDelta);
+            int newEnd = Math.Max(newStart, selEnd + totalDelta);
+            TextEditor.Select(newStart, newEnd - newStart);
+        }
+    }
+
+    private static int LineStart(string text, int pos)
+    {
+        if (pos <= 0) return 0;
+        int idx = text.LastIndexOf('\n', Math.Min(pos - 1, text.Length - 1));
+        return idx == -1 ? 0 : idx + 1;
+    }
+
+    private static int LineEnd(string text, int pos)
+    {
+        if (pos >= text.Length) return text.Length;
+        int idx = text.IndexOf('\n', pos);
+        return idx == -1 ? text.Length : idx;
     }
 
     // 리사이즈 시작 시점의 마우스 절대 위치(부모 캔버스 좌표계). thumb 자체가 리사이즈로
