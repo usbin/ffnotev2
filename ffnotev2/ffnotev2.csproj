@@ -20,12 +20,13 @@
     <SelfContained>false</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <StartupObject>ffnotev2.App</StartupObject>
-    <ApplicationIcon>..\res\icon.ico</ApplicationIcon>
+    <!-- WPF temp project(wpftmp.csproj)가 상대 경로를 잘못 해석하므로 절대 매크로 사용 -->
+    <ApplicationIcon>$(MSBuildThisFileDirectory)..\res\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- 트레이 NotifyIcon에서 pack URI(/res/icon.ico)로 로드하기 위해 Resource로도 포함 -->
-    <Resource Include="..\res\icon.ico" Link="res\icon.ico" />
+    <Resource Include="$(MSBuildThisFileDirectory)..\res\icon.ico" Link="res\icon.ico" />
   </ItemGroup>
 
   <ItemGroup>

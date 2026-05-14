@@ -37,8 +37,12 @@ public static class MarkdownRenderer
         .UsePipeTables()
         .Build();
 
+    // 표 셀 폭 측정용 — Render 시작 시 set. WPF UI 스레드 단일이라 thread-safe.
+    private static string _currentFontFamily = "Segoe UI";
+
     public static FlowDocument Render(string markdown, string fontFamily, double fontSize, string imageBaseDir)
     {
+        _currentFontFamily = fontFamily;
         var doc = new FlowDocument
         {
             FontFamily = new FontFamily(fontFamily),
@@ -259,7 +263,39 @@ public static class MarkdownRenderer
             foreach (var blk in mdTable)
                 if (blk is MdTableRow row && row.Count > colCount) colCount = row.Count;
         }
-        for (int i = 0; i < colCount; i++) table.Columns.Add(new TableColumn { Width = GridLength.Auto });
+
+        // 셀별 텍스트를 미리 추출해 컬럼 max width를 FormattedText로 측정.
+        // WPF FlowDocument Table은 GridLength.Auto가 컨텐츠 폭에 따라 자동 조정되지 않아 균등 분배되는 문제 회피.
+        var rowList = mdTable.OfType<MdTableRow>().ToList();
+        var colWidths = new double[colCount];
+        for (int ci = 0; ci < colCount; ci++)
+        {
+            double maxW = 0;
+            for (int ri = 0; ri < rowList.Count; ri++)
+            {
+                var row = rowList[ri];
+                int colIdx = 0;
+                foreach (var c in row)
+                {
+                    if (c is not MdTableCell mdCell) continue;
+                    if (colIdx == ci)
+                    {
+                        var text = ExtractCellText(mdCell);
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            var w = MeasureWidth(text, baseFontSize, row.IsHeader);
+                            if (w > maxW) maxW = w;
+                        }
+                        break;
+                    }
+                    colIdx++;
+                }
+            }
+            // padding 좌우 6 + 약간의 여유 4
+            colWidths[ci] = Math.Max(20, maxW + 16);
+        }
+        for (int i = 0; i < colCount; i++)
+            table.Columns.Add(new TableColumn { Width = new GridLength(colWidths[i]) });
 
         var headerGroup = new TableRowGroup();
         var bodyGroup = new TableRowGroup();
@@ -356,7 +392,22 @@ public static class MarkdownRenderer
             BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
             BorderThickness = new Thickness(0, 1, 0, 1),
         };
-        for (int i = 0; i < cols.Count; i++) table.Columns.Add(new TableColumn { Width = GridLength.Auto });
+        // 컬럼별 max width 측정 (헤더 + 각 row 값)
+        var colWidthsSql = new double[cols.Count];
+        for (int ci = 0; ci < cols.Count; ci++)
+        {
+            double maxW = MeasureWidth(cols[ci], baseFontSize, isHeader: true);
+            foreach (var r in rows)
+            {
+                var val = ci < r.Count ? r[ci] : string.Empty;
+                if (string.IsNullOrEmpty(val)) continue;
+                var w = MeasureWidth(val, baseFontSize, isHeader: false);
+                if (w > maxW) maxW = w;
+            }
+            colWidthsSql[ci] = Math.Max(20, maxW + 16);
+        }
+        for (int i = 0; i < cols.Count; i++)
+            table.Columns.Add(new TableColumn { Width = new GridLength(colWidthsSql[i]) });
         var headerGroup = new TableRowGroup();
         var bodyGroup = new TableRowGroup();
         table.RowGroups.Add(headerGroup);
@@ -395,6 +446,45 @@ public static class MarkdownRenderer
 
         // 결과 위에 작은 라벨 추가용으로 Section + caption 만들고 싶지만 단순화 위해 Table만 반환
         return table;
+    }
+
+    private static string ExtractCellText(MdTableCell cell)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var blk in cell)
+        {
+            if (blk is ParagraphBlock pb) AppendInlineText(pb.Inline, sb);
+        }
+        return sb.ToString();
+    }
+
+    private static void AppendInlineText(ContainerInline? inlines, System.Text.StringBuilder sb)
+    {
+        if (inlines is null) return;
+        var child = inlines.FirstChild;
+        while (child is not null)
+        {
+            switch (child)
+            {
+                case LiteralInline lit: sb.Append(lit.Content.ToString()); break;
+                case CodeInline code: sb.Append(code.Content); break;
+                case ContainerInline cont: AppendInlineText(cont, sb); break;
+            }
+            child = child.NextSibling;
+        }
+    }
+
+    private static double MeasureWidth(string text, double fontSize, bool isHeader)
+    {
+        if (string.IsNullOrEmpty(text)) return 0;
+        var tf = new Typeface(new FontFamily(_currentFontFamily),
+            FontStyles.Normal,
+            isHeader ? FontWeights.Bold : FontWeights.Normal,
+            FontStretches.Normal);
+        var ft = new FormattedText(text,
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight, tf, fontSize, Brushes.White, 1.0);
+        return ft.Width;
     }
 
     private static void AppendInlines(InlineCollection target, ContainerInline? source, double baseFontSize, string imageBaseDir)

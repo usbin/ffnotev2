@@ -1,6 +1,12 @@
 <!-- 최종 수정: 2026-05-14 -->
 # 개발 노트
 
+## 최근 변경 (2026-05-14, 표 그리드 fix + 셀 폭 측정)
+
+- **편집 모드 그리드 정확도 fix**: v1.0.25에서 첫 행 `|` X로 전체 표 세로선을 그려 다른 행의 `|`와 어긋남. 또 cell 좌측 경계(`r.X`)를 사용해 monospace `|` glyph(cell 중앙)와 시작부터 misalign. 수정: 각 행을 독립 박스로 그리고 세로선 X = `r.X + r.Width / 2`(cell 중앙). 글자 늘어나도 그 행의 자기 `|` 위치 따라 사각형이 이동.
+- **표시 모드 셀 폭 컨텐츠 기반 측정**: WPF FlowDocument의 `TableColumn.Width = GridLength.Auto`가 컨텐츠 폭에 맞춰 자동 조정되지 않아 균등 분배되는 문제. `FormattedText`로 헤더·각 데이터 행 셀 텍스트의 max 폭을 측정 후 `new GridLength(maxW + 16)`로 명시. `MeasureWidth(text, fontSize, isHeader)` 헬퍼 + `ExtractCellText(MdTableCell)`/`AppendInlineText` 추가. `Render` 시작 시 `_currentFontFamily` static에 저장해 측정 시점 폰트 일치. `BuildTable`/`BuildSqlResult` 양쪽 적용.
+- **아이콘 경로 매크로화**: csproj `ApplicationIcon`/`Resource Include`가 `..\res\icon.ico` 상대 경로 사용 시 WPF temp project(`wpftmp.csproj`)에서 상대 해석이 깨져 빌드 실패. `$(MSBuildThisFileDirectory)..\res\icon.ico`로 절대화. `ApplicationIcon`은 **.ico 포맷만** 가능 — PNG 사용 불가, multi-resolution ico 권장.
+
 ## 최근 변경 (2026-05-14, 앱 아이콘 적용)
 
 - **`res/icon.ico` 앱 아이콘 적용**: csproj에 `<ApplicationIcon>..\res\icon.ico</ApplicationIcon>` + `<Resource Include="..\res\icon.ico" Link="res\icon.ico" />` 추가. ApplicationIcon은 .exe PE 리소스로 박혀 Windows 탐색기·작업 표시줄·창 아이콘에 자동 반영. Resource는 pack URI(`pack://application:,,,/res/icon.ico`)로 런타임 로드용. `App.LoadAppIcon()`이 pack URI로 스트림을 열어 `System.Drawing.Icon` 생성 → `NotifyIcon.Icon`에 적용. 실패 시 `SystemIcons.Application` fallback.

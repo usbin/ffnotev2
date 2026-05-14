@@ -84,57 +84,45 @@ public class TableGridAdorner : Adorner
 
     private void DrawTable(DrawingContext dc, string t, List<int> lineStarts, int firstLi, int lastLi)
     {
-        // 첫 행에서 '|' 위치 모두 수집
-        var (firstStart, firstEnd) = LineSpan(t, lineStarts, firstLi);
-        int fEnd = firstEnd;
-        if (fEnd > firstStart && t[fEnd - 1] == '\r') fEnd--;
+        // 각 행을 독립 박스로 그림. 행마다 자기 '|' 위치를 사용해 글자와 어긋남 없음.
+        // 인접 행은 Y가 이어지므로 시각적으로 표 형태로 합쳐져 보임.
+        for (int li = firstLi; li <= lastLi; li++)
+            DrawRowBox(dc, t, lineStarts, li);
+    }
 
-        var pipeXs = new List<double>();
-        for (int i = firstStart; i < fEnd; i++)
+    private void DrawRowBox(DrawingContext dc, string t, List<int> lineStarts, int li)
+    {
+        var (s, eExcl) = LineSpan(t, lineStarts, li);
+        int e = eExcl;
+        if (e > s && t[e - 1] == '\r') e--;
+
+        // 이 행의 '|' cell-center X 수집. monospace에서 '|' glyph는 cell 가운데에 그려지므로
+        // r.X(좌측 경계)가 아니라 r.X + r.Width / 2로 글자 위에 정확히 겹치게 한다.
+        var xs = new List<double>();
+        Rect first = default;
+        for (int i = s; i < e; i++)
         {
             if (t[i] != '|') continue;
             Rect r;
             try { r = _editor.GetRectFromCharacterIndex(i); }
-            catch { return; }
-            if (double.IsInfinity(r.X) || double.IsNaN(r.X)) continue;
-            pipeXs.Add(r.X);
-        }
-        if (pipeXs.Count < 2) return;
-
-        // 표 영역 Y 범위
-        Rect topRect;
-        try { topRect = _editor.GetRectFromCharacterIndex(firstStart); }
-        catch { return; }
-        if (double.IsInfinity(topRect.Y) || double.IsNaN(topRect.Y)) return;
-        double tableTop = topRect.Y;
-
-        var (lastStart, lastEnd) = LineSpan(t, lineStarts, lastLi);
-        int lEnd = lastEnd;
-        if (lEnd > lastStart && t[lEnd - 1] == '\r') lEnd--;
-        Rect bottomRect;
-        try { bottomRect = _editor.GetRectFromCharacterIndex(Math.Max(lastStart, lEnd - 1)); }
-        catch { return; }
-        if (double.IsInfinity(bottomRect.Y) || double.IsNaN(bottomRect.Y)) return;
-        double tableBottom = bottomRect.Y + bottomRect.Height;
-
-        double leftX = pipeXs[0];
-        double rightX = pipeXs[^1];
-
-        // 세로선 — 첫 행의 '|' X로 표 시작 → 끝까지
-        foreach (var x in pipeXs)
-            dc.DrawLine(_pen, new Point(x, tableTop), new Point(x, tableBottom));
-
-        // 가로선 — 각 행의 상단 + 마지막 행 하단
-        for (int li = firstLi; li <= lastLi; li++)
-        {
-            var (s, _) = LineSpan(t, lineStarts, li);
-            Rect r;
-            try { r = _editor.GetRectFromCharacterIndex(s); }
             catch { continue; }
-            if (double.IsInfinity(r.Y) || double.IsNaN(r.Y)) continue;
-            dc.DrawLine(_pen, new Point(leftX, r.Y), new Point(rightX, r.Y));
+            if (double.IsInfinity(r.X) || double.IsNaN(r.X)) continue;
+            if (xs.Count == 0) first = r;
+            xs.Add(r.X + r.Width / 2.0);
         }
-        // 마지막 행 하단
-        dc.DrawLine(_pen, new Point(leftX, tableBottom), new Point(rightX, tableBottom));
+        if (xs.Count < 2) return;
+        if (double.IsInfinity(first.Y) || double.IsNaN(first.Y)) return;
+
+        double top = first.Y;
+        double bottom = first.Y + first.Height;
+        double left = xs[0];
+        double right = xs[^1];
+
+        // 상단·하단 가로선
+        dc.DrawLine(_pen, new Point(left, top), new Point(right, top));
+        dc.DrawLine(_pen, new Point(left, bottom), new Point(right, bottom));
+        // 세로선 (각 '|' cell 중앙)
+        foreach (var x in xs)
+            dc.DrawLine(_pen, new Point(x, top), new Point(x, bottom));
     }
 }
