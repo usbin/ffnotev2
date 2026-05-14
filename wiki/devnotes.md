@@ -1,6 +1,10 @@
 <!-- 최종 수정: 2026-05-14 -->
 # 개발 노트
 
+## 최근 변경 (2026-05-14, 앱 아이콘 적용)
+
+- **`res/icon.ico` 앱 아이콘 적용**: csproj에 `<ApplicationIcon>..\res\icon.ico</ApplicationIcon>` + `<Resource Include="..\res\icon.ico" Link="res\icon.ico" />` 추가. ApplicationIcon은 .exe PE 리소스로 박혀 Windows 탐색기·작업 표시줄·창 아이콘에 자동 반영. Resource는 pack URI(`pack://application:,,,/res/icon.ico`)로 런타임 로드용. `App.LoadAppIcon()`이 pack URI로 스트림을 열어 `System.Drawing.Icon` 생성 → `NotifyIcon.Icon`에 적용. 실패 시 `SystemIcons.Application` fallback.
+
 ## 최근 변경 (2026-05-14, 수동 업데이트 확인)
 
 - **트레이 메뉴에 "업데이트 확인..." 추가**: 기존 자동 체크(메인 창 첫 가시 시 1회)에 더해 사용자가 임의 시점에 수동 호출 가능. `UpdateService.CheckAndPromptAsync`에 `bool manual = false` 파라미터 추가 — manual=true면 "이미 최신 버전입니다" / "개발 빌드는 미지원" / 네트워크 실패 메시지를 모두 사용자에게 표시(자동 체크 시엔 silent 유지). 트레이 메뉴 클릭 시 `App.CheckForUpdatesManual` → `ShowMain()` 호출 후 다이얼로그 owner를 메인 창으로 지정.
@@ -116,7 +120,6 @@
 - [ ] 노트 검색 / 필터
 - [ ] "여기로 이동" — 화면 밖 노트로 뷰 이동
 - [ ] 백업·Export·Import (SQLite + 이미지 zip)
-- [ ] 트레이 아이콘 커스텀 (현재 `SystemIcons.Application`)
 - [ ] DPI 스케일 변경 시 오버레이 위치 보정 (현재는 픽셀 단위 저장만)
 - [ ] 다국어
 

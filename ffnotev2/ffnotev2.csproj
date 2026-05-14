@@ -20,7 +20,13 @@
     <SelfContained>false</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <StartupObject>ffnotev2.App</StartupObject>
+    <ApplicationIcon>..\res\icon.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 트레이 NotifyIcon에서 pack URI(/res/icon.ico)로 로드하기 위해 Resource로도 포함 -->
+    <Resource Include="..\res\icon.ico" Link="res\icon.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- WinForms implicit using 제거: System.Windows.Input과 MouseEventArgs 충돌 방지 -->

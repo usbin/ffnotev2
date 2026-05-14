@@ -150,7 +150,7 @@ public partial class App : Application
     {
         _tray = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = LoadAppIcon() ?? SystemIcons.Application,
             Text = "ffnote v2",
             Visible = true
         };
@@ -171,6 +171,20 @@ public partial class App : Application
     {
         ShowMain();
         _ = new UpdateService().CheckAndPromptAsync(_mainWindow, manual: true);
+    }
+
+    /// <summary>csproj의 Resource(`/res/icon.ico`)를 System.Drawing.Icon으로 로드.
+    /// 실패하면 null 반환 — 호출자가 fallback 사용.</summary>
+    private static System.Drawing.Icon? LoadAppIcon()
+    {
+        try
+        {
+            var uri = new Uri("pack://application:,,,/res/icon.ico");
+            using var stream = System.Windows.Application.GetResourceStream(uri)?.Stream;
+            if (stream is null) return null;
+            return new System.Drawing.Icon(stream);
+        }
+        catch { return null; }
     }
 
     /// <summary>설정과 실제 레지스트리 상태를 일치시킨다 (앱 시작 시 1회).</summary>
