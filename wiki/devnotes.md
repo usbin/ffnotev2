@@ -1,6 +1,12 @@
 <!-- 최종 수정: 2026-05-14 -->
 # 개발 노트
 
+## 최근 변경 (2026-05-14, 자동 정렬 트리거 단순화)
+
+- **매 키 자동 정렬 → Tab/Enter/LostFocus 시점만**: TextChanged 디바운스(`DispatcherTimer`) 트리거 자체 제거. 한글 IME 합성 도중 Text 통째 set이 자모 상태를 깨뜨려 후속 space 입력이 누락되는 버그 해결. 사용자 입력 중에 표가 자꾸 흔들리지 않음. Tab 누를 때 / Enter로 새 행 만들 때 / 편집 종료(`TextEditor_LostFocus`) 시점에만 `AlignTableAtCaret()` 호출.
+- **빈 셀 자동 추가 X (컬럼 삭제 가능)**: 기존엔 `colCount = max(all rows)`로 짧아진 행에 빈 셀이 자동 추가돼 사용자가 한 행에서 컬럼을 지워도 정렬 후 복구됨. 수정: 재조립 시 각 행을 `rows[ri].Length`만큼만 출력 — 짧은 행은 그대로 짧음. 사용자가 컬럼 삭제 의도면 그대로 유지됨.
+- **active 셀 raw 보존 로직 제거 (단순화)**: 매 키 정렬이 없어졌으니 active 셀이 정렬 중에 변경되는 시점 = 사용자가 셀을 떠나는 시점(Tab/Enter/LostFocus). 그 시점엔 모든 셀 정렬되는 게 자연스러움. raw offset 추적, `SplitTableCellsRaw`, active 셀 분기 모두 제거.
+
 ## 최근 변경 (2026-05-14, 자동 정렬 정확도 + 활성 셀 보존)
 
 - **px 측정 기반 정렬**: 글자 수(`DisplayWidth`) 기반은 monospace + 한글에서 폰트 fallback 비율이 정확히 2배가 아니라 ±0.x cell 어긋남. `FormattedText.Width`로 모든 셀 content를 px로 측정해 padding 공백 개수 = `round((maxPx - cellPx) / spaceW)`, separator dash 개수 = `round(maxPx / dashW)`로 정확히 같은 px 폭. 한글이 영문의 정확히 2배가 아니어도 ±0.5 cell 안으로 보정.

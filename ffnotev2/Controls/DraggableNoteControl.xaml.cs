@@ -383,29 +383,11 @@ public partial class DraggableNoteControl : UserControl
             UpdateLineNumbers();
             _tableAdorner?.InvalidateVisual();
         }), DispatcherPriority.Loaded);
-        ScheduleAlignTable();
+        // 자동 정렬은 매 키 X — 사용자 입력 중 다른 셀이 흔들리는 게 거슬림.
+        // Tab/Enter/편집 종료 시점에만 명시적 트리거.
     }
 
-    // 표 자동 정렬: 캐럿이 표 행 안일 때 컬럼별 max display width로 모든 행을 공백 패딩.
-    // 매 키 직후 즉시 동작하면 한글 IME 합성 중 Text 교체로 자모 분리 위험 → 300ms 디바운스 + Background priority.
-    private DispatcherTimer? _alignTimer;
-    private bool _suppressAlign;
-
-    private void ScheduleAlignTable()
-    {
-        if (_suppressAlign) return;
-        if (_alignTimer is null)
-        {
-            _alignTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
-            _alignTimer.Tick += (_, _) =>
-            {
-                _alignTimer!.Stop();
-                AlignTableAtCaret();
-            };
-        }
-        _alignTimer.Stop();
-        _alignTimer.Start();
-    }
+    // 표 자동 정렬: 매 키 트리거는 한글 IME 합성과 충돌 → Tab/Enter/LostFocus 시점에만 명시적 호출.
 
     private void AlignTableAtCaret()
     {
@@ -441,23 +423,19 @@ public partial class DraggableNoteControl : UserControl
         var tableText = t.Substring(tableStart, tableEnd - tableStart);
         var lines = tableText.Split('\n');
 
-        // 캐럿이 어느 row·cell·셀 내 raw offset에 있는지 먼저 식별 — 그 셀은 정렬에서 제외 (raw 유지)
+        // 캐럿 위치 식별 (보존용 — 모든 셀은 정렬 대상)
         var caretLoc = LocateCaretInTable(tableText, caret - tableStart);
-        int activeRow = caretLoc.Row, activeCell = caretLoc.Cell;
 
-        // 각 행을 cell list로 split (trim) + 원본 raw cell 보관 + separator 판정
+        // 각 행을 cell list로 split (trim) + separator 판정
         var rows = new List<string[]>();
-        var rawCells = new List<string[]>();
         var isSep = new List<bool>();
         int colCount = 0;
         foreach (var ln in lines)
         {
             var trimmed = ln.TrimEnd('\r');
             var cells = SplitTableCells(trimmed);
-            var raws = SplitTableCellsRaw(trimmed);
             if (cells.Length > colCount) colCount = cells.Length;
             rows.Add(cells);
-            rawCells.Add(raws);
             isSep.Add(IsSeparatorOnly(trimmed));
         }
         if (colCount == 0) return;
@@ -478,12 +456,8 @@ public partial class DraggableNoteControl : UserControl
             if (isSep[ri]) continue;
             for (int ci = 0; ci < rows[ri].Length && ci < colCount; ci++)
             {
-                // active 셀은 raw 전체(좌우 공백 포함) 폭으로 max에 반영해 다른 셀이 그 폭에 맞춤
-                double w;
-                if (ri == activeRow && ci == activeCell)
-                    w = MeasurePx(ci < rawCells[ri].Length ? rawCells[ri][ci] : string.Empty, tf, fontSize);
-                else
-                    w = MeasurePx(rows[ri][ci], tf, fontSize) + 2 * spaceW;  // 좌우 공백 포함 폭
+                // contentPx = 셀 폭 (좌우 공백 1자씩 포함)
+                double w = MeasurePx(rows[ri][ci], tf, fontSize) + 2 * spaceW;
                 contentPx[ri, ci] = w;
                 if (w > maxPx[ci]) maxPx[ci] = w;
             }
@@ -504,26 +478,22 @@ public partial class DraggableNoteControl : UserControl
             dashCount[ci] = dc;
         }
 
-        // 재조립
+        // 재조립 — 각 행은 자기 셀 수만큼만 출력 (빈 셀 자동 추가 X).
+        // 사용자가 한 행에서 컬럼을 지우면 그 행만 짧아지고 정렬이 강제 복구하지 않음.
         var sb = new System.Text.StringBuilder();
         for (int ri = 0; ri < rows.Count; ri++)
         {
             sb.Append('|');
-            for (int ci = 0; ci < colCount; ci++)
+            int cellsInRow = rows[ri].Length;
+            for (int ci = 0; ci < cellsInRow; ci++)
             {
                 if (isSep[ri])
                 {
                     sb.Append(new string('-', dashCount[ci]));
                 }
-                else if (ri == activeRow && ci == activeCell)
-                {
-                    // 사용자 편집 중인 셀 — raw 그대로 보존(좌우 공백 포함)
-                    sb.Append(ci < rawCells[ri].Length ? rawCells[ri][ci] : string.Empty);
-                }
                 else
                 {
-                    var cell = ci < rows[ri].Length ? rows[ri][ci] : string.Empty;
-                    // contentPx[ri,ci]는 이미 좌우 공백 포함된 셀 폭. 부족분만 공백 패딩 추가.
+                    var cell = rows[ri][ci];
                     int pad = (int)Math.Round((maxPx[ci] - contentPx[ri, ci]) / spaceW);
                     if (pad < 0) pad = 0;
                     sb.Append(' ').Append(cell).Append(new string(' ', pad)).Append(' ');
@@ -535,27 +505,21 @@ public partial class DraggableNoteControl : UserControl
         var newTableText = sb.ToString();
         if (newTableText == tableText) return;
 
-        // 캐럿 보존: active 셀은 raw 보존되므로 raw offset 그대로, 다른 셀이면 content offset 기반
+        // 캐럿 보존: content offset 기반 (좌측 공백 동적 측정 후 제외)
         int newCaret = caret;
         if (caret >= tableStart && caret <= tableEnd)
         {
-            newCaret = tableStart + LocateCharInTable(newTableText, caretLoc.Row, caretLoc.Cell,
-                caretLoc.RawOffset, caretLoc.ContentOffset, activeRow, activeCell);
+            newCaret = tableStart + LocateCharInTable(newTableText, caretLoc.Row, caretLoc.Cell, caretLoc.ContentOffset);
         }
         else if (caret > tableEnd)
         {
             newCaret = caret + (newTableText.Length - tableText.Length);
         }
 
-        _suppressAlign = true;
-        try
-        {
-            var before = t.Substring(0, tableStart);
-            var after = t.Substring(tableEnd);
-            TextEditor.Text = before + newTableText + after;
-            TextEditor.CaretIndex = Math.Clamp(newCaret, 0, TextEditor.Text.Length);
-        }
-        finally { _suppressAlign = false; }
+        var before = t.Substring(0, tableStart);
+        var after = t.Substring(tableEnd);
+        TextEditor.Text = before + newTableText + after;
+        TextEditor.CaretIndex = Math.Clamp(newCaret, 0, TextEditor.Text.Length);
     }
 
     private static double MeasurePx(string s, Typeface tf, double size)
@@ -568,10 +532,9 @@ public partial class DraggableNoteControl : UserControl
         return ft.Width;
     }
 
-    // tableText 안에서 char offset → (row, cell, raw offset, content offset)
-    // RawOffset: 셀 시작(`|` 다음) 기준 char offset (좌우 공백 포함)
-    // ContentOffset: trimmed content 안에서의 offset (좌측 공백 제외)
-    private static (int Row, int Cell, int RawOffset, int ContentOffset) LocateCaretInTable(string tableText, int offsetInTable)
+    // tableText 안에서 char offset → (row, cell, content offset)
+    // ContentOffset: trimmed content 안에서의 offset (좌우 공백 제외)
+    private static (int Row, int Cell, int ContentOffset) LocateCaretInTable(string tableText, int offsetInTable)
     {
         int row = 0, cell = -1, lastPipe = -1;
         for (int i = 0; i < offsetInTable && i < tableText.Length; i++)
@@ -580,7 +543,7 @@ public partial class DraggableNoteControl : UserControl
             if (ch == '\n') { row++; cell = -1; lastPipe = -1; }
             else if (ch == '|') { cell++; lastPipe = i; }
         }
-        if (cell < 0 || lastPipe < 0) return (row, 0, 0, 0);
+        if (cell < 0 || lastPipe < 0) return (row, 0, 0);
 
         int cellStart = lastPipe + 1;
         int nextPipe = tableText.IndexOf('|', offsetInTable);
@@ -597,12 +560,11 @@ public partial class DraggableNoteControl : UserControl
         int contentLen = Math.Max(0, cellEnd - cellStart - leftSp - rightSp);
         int raw = Math.Max(0, offsetInTable - cellStart);
         int trimmed = Math.Max(0, Math.Min(contentLen, raw - leftSp));
-        return (row, cell, raw, trimmed);
+        return (row, cell, trimmed);
     }
 
-    // newTableText에서 (row, cell, rawOffset, contentOffset) + active 여부 → char index
-    private static int LocateCharInTable(string newTableText, int targetRow, int targetCell,
-        int targetRawOffset, int targetContentOffset, int activeRow, int activeCell)
+    // newTableText에서 (row, cell, content offset) → char index. 좌측 공백 1자 스킵 후 content 안 offset 위치.
+    private static int LocateCharInTable(string newTableText, int targetRow, int targetCell, int targetContentOffset)
     {
         int row = 0, cell = -1;
         for (int i = 0; i < newTableText.Length; i++)
@@ -621,12 +583,6 @@ public partial class DraggableNoteControl : UserControl
                     if (nextPipe < 0) cellEnd = nextNl < 0 ? newTableText.Length : nextNl;
                     else if (nextNl >= 0 && nextNl < nextPipe) cellEnd = nextNl;
                     else cellEnd = nextPipe;
-
-                    if (row == activeRow && cell == activeCell)
-                    {
-                        // active 셀은 raw 보존됐으므로 raw offset 그대로
-                        return Math.Min(cellStart + targetRawOffset, cellEnd);
-                    }
                     int leftSp = 0;
                     while (cellStart + leftSp < cellEnd && newTableText[cellStart + leftSp] == ' ') leftSp++;
                     return Math.Min(cellStart + leftSp + targetContentOffset, cellEnd);
@@ -634,14 +590,6 @@ public partial class DraggableNoteControl : UserControl
             }
         }
         return newTableText.Length;
-    }
-
-    // trim 안 한 raw cell split — active 셀 보존용
-    private static string[] SplitTableCellsRaw(string row)
-    {
-        if (row.Length < 2 || row[0] != '|' || row[^1] != '|') return new[] { row };
-        var inner = row.Substring(1, row.Length - 2);
-        return inner.Split('|');
     }
 
     private static string[] SplitTableCells(string row)
@@ -835,6 +783,7 @@ public partial class DraggableNoteControl : UserControl
 
     private void TextEditor_LostFocus(object sender, RoutedEventArgs e)
     {
+        AlignTableAtCaret();  // 편집 종료 시 마지막 표 정렬
         DetachTableAdorner();
         EditorContainer.Visibility = Visibility.Collapsed;
         TextDisplayScroll.Visibility = Visibility.Visible;
@@ -858,6 +807,8 @@ public partial class DraggableNoteControl : UserControl
         if (e.Key == Key.Tab)
         {
             bool back = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+            // 셀 점프 전에 표를 한 번 정렬 — 다음 셀 위치 계산이 정확해짐
+            AlignTableAtCaret();
             if (TryHandleTableTab(back))
             {
                 e.Handled = true;
@@ -871,6 +822,7 @@ public partial class DraggableNoteControl : UserControl
         // Enter: 표 행 끝에서 누르면 새 행(헤더 다음이면 separator 자동 보강)
         if (e.Key == Key.Return && Keyboard.Modifiers == ModifierKeys.None)
         {
+            AlignTableAtCaret();  // 새 행 추가 전 현재 표 정렬
             if (TryHandleTableEnter())
             {
                 e.Handled = true;
