@@ -732,16 +732,9 @@ public partial class MainWindow : Window
         foreach (var g in groups) App.MainVM.DeleteGroup(g);
     }
 
-    private void FontSettings_Click(object sender, RoutedEventArgs e)
+    private void Settings_Click(object sender, RoutedEventArgs e)
     {
-        var app = (App)Application.Current;
-        var dlg = new FontSettingsDialog(app.SettingsService.Settings) { Owner = this };
-        if (dlg.ShowDialog() == true)
-        {
-            app.SettingsService.Settings.NoteFontFamily = dlg.ResultFontFamily;
-            app.SettingsService.Settings.NoteFontSize = dlg.ResultFontSize;
-            app.SettingsService.Save();  // SettingsChanged 이벤트 발생 → 모든 노트가 RefreshDocument
-        }
+        ((App)Application.Current).ShowSettings();
     }
 
     private void NotebookMenu_Click(object sender, RoutedEventArgs e)

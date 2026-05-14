@@ -39,4 +39,7 @@ public class AppSettings
 
     /// <summary>편집 모드에서 좌측 줄 번호 표시.</summary>
     public bool ShowLineNumbers { get; set; } = true;
+
+    /// <summary>편집 모드에서 고정폭 폰트 사용 (표 정렬 가독성). 표시 모드는 NoteFontFamily 유지.</summary>
+    public bool EditorMonospace { get; set; } = true;
 }

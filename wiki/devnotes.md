@@ -1,6 +1,13 @@
 <!-- 최종 수정: 2026-05-14 -->
 # 개발 노트
 
+## 최근 변경 (2026-05-14, 설정 통합 + 편집 표 가독성)
+
+- **설정 다이얼로그 통합**: `Dialogs/SettingsDialog` 신규 — 기존 `HotkeySettingsDialog` + `FontSettingsDialog` + 트레이 "자동 실행" 토글을 한 곳으로 합침. 진입점은 사이드바 "설정" 버튼 + 트레이 "설정..." 두 곳. 기존 두 다이얼로그·App의 `_autoStartMenuItem`/`OnAutoStartToggleClicked` 제거. `App.ShowHotkeySettings` → `ShowSettings`로 이름 변경.
+- **편집 시 고정폭 폰트 옵션** (`AppSettings.EditorMonospace`, 기본 ON): 편집 모드만 Consolas 등 monospace 사용, 표시 모드는 `NoteFontFamily` 유지. 표 입력 시 셀 정렬에 유리.
+- **표 셀 폭 컨텐츠 맞춤**: WPF `Table.Columns`의 `TableColumn.Width = GridLength.Auto`로 변경 (이전: 1* 균등 분포 → 컨텐츠 길이 짧아도 폭 넓게 차지). `BuildTable`/`BuildSqlResult` 둘 다 적용.
+- **줄 번호 절대 좌표 배치**: 기존 단일 `TextBlock`이 LineHeight 차이로 본문과 누적 어긋남. `LineNumberBorder + Canvas`로 교체 후 각 logical 줄에 대해 `TextEditor.GetRectFromCharacterIndex`로 정확한 Y를 얻어 `Canvas.SetTop` 절대 배치. 스크롤 시 `ScrollChanged`에서 `UpdateLineNumbers` 재호출(좌표 자체가 visual 좌표).
+
 ## 최근 변경 (2026-05-14, Vi 제거 + 줄 번호 wrap 정렬)
 
 - **Vi 모드 전체 제거**: `Services/ViController.cs` 삭제. `AppSettings`에서 `ViModeEnabled`/`ViStartInNormal` 필드 제거. `HotkeySettingsDialog`에서 Vi 체크박스 제거. `MainWindow.TryHandleCanvasVi` 메서드 + `_viPending` 필드 제거. `DraggableNoteControl`에서 `_vi` 필드 + EnsureViController/OnViStateChanged/OnViQuitRequested/UpdateViBadge 제거 + ViModeBadge/CommandBar XAML 제거. `Esc`로 편집 종료 복원(Shift+Enter 종료 분기는 제거). 향후 vi 지원은 신뢰도 높은 WPF 순정 플러그인이 등장하면 재검토. 그 전까지는 자체 구현하지 않음(검증 + 텍스트 객체/카운트/operator 결합 등 풀 vim grammar 비용이 큼).

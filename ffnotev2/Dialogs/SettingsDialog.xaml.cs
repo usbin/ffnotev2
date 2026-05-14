@@ -5,32 +5,56 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using ffnotev2.Models;
 using ffnotev2.Services;
+using FontFamily = System.Windows.Media.FontFamily;
+using Fonts = System.Windows.Media.Fonts;
 
 namespace ffnotev2.Dialogs;
 
-public partial class HotkeySettingsDialog : Window
+public partial class SettingsDialog : Window
 {
     private readonly AppSettings _working;
 
     public ObservableCollection<NotebookHotkeyEntry> NotebookEntries { get; } = new();
 
-    public HotkeySettingsDialog(AppSettings current)
+    public SettingsDialog(AppSettings current)
     {
         ArgumentNullException.ThrowIfNull(current);
         InitializeComponent();
-        // 작업용 사본 (취소 시 원본 보존)
+        // 취소 시 원본 보존을 위한 작업 사본
         _working = new AppSettings
         {
             ShowMain = current.ShowMain.Clone(),
             ToggleOverlay = current.ToggleOverlay.Clone(),
             ToggleClickThrough = current.ToggleClickThrough.Clone(),
             NotebookSwitches = current.NotebookSwitches.Select(b => b.Clone()).ToArray(),
+            NoteFontFamily = current.NoteFontFamily,
+            NoteFontSize = current.NoteFontSize,
             ShowLineNumbers = current.ShowLineNumbers,
+            EditorMonospace = current.EditorMonospace,
+            AutoStartOnLogin = current.AutoStartOnLogin,
         };
+
+        // 폰트 콤보
+        var families = Fonts.SystemFontFamilies
+            .Select(f => f.Source)
+            .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        FontCombo.ItemsSource = families;
+        FontCombo.SelectedItem = families.Contains(_working.NoteFontFamily)
+            ? _working.NoteFontFamily : "Segoe UI";
+        SizeSlider.Value = _working.NoteFontSize;
+
+        // 노트북 단축키
         BuildNotebookEntries();
         NotebookSwitchesList.ItemsSource = NotebookEntries;
-        RefreshAllBoxes();
+
+        // 체크박스
         ShowLineNumbersCheck.IsChecked = _working.ShowLineNumbers;
+        EditorMonospaceCheck.IsChecked = _working.EditorMonospace;
+        AutoStartCheck.IsChecked = _working.AutoStartOnLogin;
+
+        RefreshAllBoxes();
+        UpdatePreview();
     }
 
     public AppSettings Result => _working;
@@ -58,13 +82,23 @@ public partial class HotkeySettingsDialog : Window
         foreach (var entry in NotebookEntries) entry.Refresh();
     }
 
+    private void OnFontChanged(object sender, RoutedEventArgs e) => UpdatePreview();
+
+    private void UpdatePreview()
+    {
+        if (PreviewText is null) return;
+        if (FontCombo.SelectedItem is string family)
+            PreviewText.FontFamily = new FontFamily(family);
+        PreviewText.FontSize = SizeSlider.Value;
+        if (SizeLabel is not null) SizeLabel.Text = ((int)SizeSlider.Value).ToString();
+    }
+
     private void HotkeyBox_GotFocus(object sender, RoutedEventArgs e)
     {
         if (sender is TextBox tb)
             tb.Background = System.Windows.Media.Brushes.LightYellow;
     }
 
-    /// <summary>글로벌 단축키 캡처 — 모디파이어 1개 이상 필수 (Win32 RegisterHotKey 권장).</summary>
     private void GlobalHotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (!TryCaptureKey(e, out var key, out var modifiers, requireModifier: true)) return;
@@ -84,7 +118,6 @@ public partial class HotkeySettingsDialog : Window
         e.Handled = true;
     }
 
-    /// <summary>로컬(노트북 전환) 단축키 캡처 — 모디파이어 없어도 허용.</summary>
     private void LocalHotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (!TryCaptureKey(e, out var key, out var modifiers, requireModifier: false)) return;
@@ -104,7 +137,6 @@ public partial class HotkeySettingsDialog : Window
         key = e.Key == Key.System ? e.SystemKey : e.Key;
         modifiers = HotkeyModifiers.None;
 
-        // 단독 modifier 키는 캡처 안 함 (사용자가 modifier 만 누른 상태)
         if (key is Key.LeftCtrl or Key.RightCtrl
             or Key.LeftAlt or Key.RightAlt
             or Key.LeftShift or Key.RightShift
@@ -114,7 +146,6 @@ public partial class HotkeySettingsDialog : Window
             return false;
         }
 
-        // ESC는 캡처 취소
         if (key == Key.Escape)
         {
             if (e.OriginalSource is TextBox tbCancel) tbCancel.Background = System.Windows.Media.Brushes.White;
@@ -131,7 +162,6 @@ public partial class HotkeySettingsDialog : Window
 
         if (requireModifier && modifiers == HotkeyModifiers.None)
         {
-            // 글로벌 핫키는 modifier 1개 이상 권장 — 무효화
             e.Handled = true;
             return false;
         }
@@ -145,15 +175,30 @@ public partial class HotkeySettingsDialog : Window
         _working.ToggleOverlay = def.ToggleOverlay;
         _working.ToggleClickThrough = def.ToggleClickThrough;
         _working.NotebookSwitches = AppSettings.DefaultNotebookSwitches();
+        _working.NoteFontFamily = def.NoteFontFamily;
+        _working.NoteFontSize = def.NoteFontSize;
+        _working.ShowLineNumbers = def.ShowLineNumbers;
+        _working.EditorMonospace = def.EditorMonospace;
+        // AutoStart는 시스템 상태 — 기본값으로 강제 변경하지 않음 (사용자가 직접 토글)
+
         BuildNotebookEntries();
         NotebookSwitchesList.ItemsSource = null;
         NotebookSwitchesList.ItemsSource = NotebookEntries;
+        FontCombo.SelectedItem = _working.NoteFontFamily;
+        SizeSlider.Value = _working.NoteFontSize;
+        ShowLineNumbersCheck.IsChecked = _working.ShowLineNumbers;
+        EditorMonospaceCheck.IsChecked = _working.EditorMonospace;
         RefreshAllBoxes();
+        UpdatePreview();
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
+        _working.NoteFontFamily = (FontCombo.SelectedItem as string) ?? "Segoe UI";
+        _working.NoteFontSize = Math.Clamp(SizeSlider.Value, 9, 28);
         _working.ShowLineNumbers = ShowLineNumbersCheck.IsChecked == true;
+        _working.EditorMonospace = EditorMonospaceCheck.IsChecked == true;
+        _working.AutoStartOnLogin = AutoStartCheck.IsChecked == true;
         DialogResult = true;
         Close();
     }
@@ -169,7 +214,6 @@ public partial class NotebookHotkeyEntry : ObservableObject
 
     public string Display => Binding.DisplayString;
 
-    /// <summary>Binding이 직접 교체된 후 Display 갱신 알림 (ObservableProperty 자동 발생 외 수동 호출용).</summary>
     public void Refresh() => OnPropertyChanged(nameof(Display));
 
     partial void OnBindingChanged(HotkeyBinding value) => OnPropertyChanged(nameof(Display));

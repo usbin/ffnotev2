@@ -43,8 +43,7 @@
 | Dialogs/GamePickerDialog | 실행 중 프로세스 목록 표시, 더블클릭 또는 선택 버튼으로 연동 |
 | Dialogs/RenameDialog | 노트북 이름 변경 입력창 |
 | Dialogs/GroupDeleteDialog | 그룹 삭제 시 멤버 노트 처리 선택 — `Choice` ∈ `Cancel/DeleteAll/GroupOnly`. `MainWindow.DeleteGroupsWithPrompt`가 멤버 0건이면 미호출, 멤버 있으면 호출 |
-| Dialogs/HotkeySettingsDialog | 글로벌 단축키 3개 + 노트북 전환 10개 캡처/저장. ItemsControl로 노트북 슬롯 동적 렌더, 고정 단축키(Ctrl+화살표/Alt+화살표/Ctrl+G/Esc/Enter/마키/팬/줌 등)는 참고 섹션으로 노출. ScrollViewer로 길이 증가 대응 |
-| Dialogs/FontSettingsDialog | 시스템 폰트 콤보(`Fonts.SystemFontFamilies`) + 크기 슬라이더(9~28) + 미리보기(영문·한글·이모지). 저장 시 `AppSettings.NoteFontFamily/Size` 갱신 + `SettingsService.Save()` → 모든 노트 즉시 반영. 사이드바 "폰트 설정" 버튼에서 진입 |
+| Dialogs/SettingsDialog | 통합 설정 다이얼로그. **편집기**(폰트 family/size + 미리보기 + 줄 번호 토글 + 편집 시 고정폭 폰트 토글), **시작 옵션**(자동 시작), **글로벌 단축키 3개**, **노트북 전환 10개**, 기본 단축키 참고 섹션. 사이드바 "설정" 버튼 + 트레이 "설정..." 메뉴에서 진입 |
 | Dialogs/InsertTableDialog | 텍스트 노트 편집 중 Ctrl+T로 호출. 행·열 입력 + 미리보기 + 확인 → `BuildMarkdown()`이 헤더 + separator + 빈 데이터 행 N개 마크다운 문자열 반환. 캐럿 위치에 삽입 후 첫 셀로 이동 |
 
 ## 컨버터

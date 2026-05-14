@@ -1,0 +1,157 @@
+<Window x:Class="ffnotev2.Dialogs.SettingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="설정" Height="720" Width="560"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
+        MinHeight="500" MinWidth="460">
+    <DockPanel Margin="14">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="기본값" Width="80" Margin="0,0,8,0" Click="Reset_Click"/>
+            <Button Content="저장" Width="80" Margin="0,0,8,0" Click="Save_Click" IsDefault="True"/>
+            <Button Content="취소" Width="80" IsCancel="True"/>
+        </StackPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- 편집기 -->
+                <TextBlock Text="편집기" FontWeight="Bold" Margin="0,0,0,6"/>
+                <Border BorderBrush="#FFDDDDDD" BorderThickness="1" CornerRadius="3" Padding="10" Background="#FFFAFAFA" Margin="0,0,0,12">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="폰트" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Column="1" x:Name="FontCombo" Padding="4"
+                                      SelectionChanged="OnFontChanged"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="크기" VerticalAlignment="Center"/>
+                            <Slider Grid.Column="1" x:Name="SizeSlider"
+                                    Minimum="9" Maximum="28" SmallChange="1" LargeChange="2"
+                                    IsSnapToTickEnabled="True" TickFrequency="1"
+                                    ValueChanged="OnFontChanged"/>
+                            <TextBlock Grid.Column="2" x:Name="SizeLabel" Width="32" TextAlignment="Right"
+                                       VerticalAlignment="Center" Margin="6,0,0,0"/>
+                        </Grid>
+                        <Border Background="#FF2C2C2C" CornerRadius="3" Padding="8" Margin="0,0,0,8" Height="70">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <TextBlock x:Name="PreviewText" TextWrapping="Wrap" Foreground="#FFEEEEEE">
+                                    The quick brown fox jumps over the lazy dog.&#x0a;가나다라마바사 0123456789&#x0a;🎮 🚀 🔥 ⭐ 😀 ❤
+                                </TextBlock>
+                            </ScrollViewer>
+                        </Border>
+                        <CheckBox x:Name="ShowLineNumbersCheck" Content="줄 번호 표시" Margin="0,0,0,4"/>
+                        <CheckBox x:Name="EditorMonospaceCheck"
+                                  Content="편집 시 고정폭 폰트 사용 (표 정렬에 유리)"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 시작 옵션 -->
+                <TextBlock Text="시작 옵션" FontWeight="Bold" Margin="0,0,0,6"/>
+                <Border BorderBrush="#FFDDDDDD" BorderThickness="1" CornerRadius="3" Padding="10" Background="#FFFAFAFA" Margin="0,0,0,12">
+                    <CheckBox x:Name="AutoStartCheck" Content="Windows 시작 시 자동 실행 (트레이로 시작)"/>
+                </Border>
+
+                <!-- 글로벌 단축키 -->
+                <TextBlock Text="글로벌 단축키" FontWeight="Bold" Margin="0,0,0,6"/>
+                <TextBlock Text="윈도우 어디서든 작동. 입력란 클릭 후 키 조합 입력. Esc로 취소."
+                           Foreground="#FF888888" FontSize="11" Margin="0,0,0,8"/>
+
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="180"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="메인 창 표시" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" x:Name="ShowMainBox" Padding="6"
+                             IsReadOnly="True" Cursor="Hand" Tag="ShowMain"
+                             PreviewKeyDown="GlobalHotkeyBox_PreviewKeyDown"
+                             GotFocus="HotkeyBox_GotFocus"/>
+                </Grid>
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="180"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="오버레이 토글" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" x:Name="ToggleOverlayBox" Padding="6"
+                             IsReadOnly="True" Cursor="Hand" Tag="ToggleOverlay"
+                             PreviewKeyDown="GlobalHotkeyBox_PreviewKeyDown"
+                             GotFocus="HotkeyBox_GotFocus"/>
+                </Grid>
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="180"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="클릭 패스스루 토글" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" x:Name="ToggleClickThroughBox" Padding="6"
+                             IsReadOnly="True" Cursor="Hand" Tag="ToggleClickThrough"
+                             PreviewKeyDown="GlobalHotkeyBox_PreviewKeyDown"
+                             GotFocus="HotkeyBox_GotFocus"/>
+                </Grid>
+
+                <TextBlock Text="노트북 전환" FontWeight="Bold" Margin="0,16,0,6"/>
+                <TextBlock Text="메인 창 포커스 시 작동. 해당 인덱스의 노트북이 없으면 무시"
+                           Foreground="#FF888888" FontSize="11" Margin="0,0,0,8"/>
+
+                <ItemsControl x:Name="NotebookSwitchesList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1" Text="{Binding Display, Mode=OneWay}" Padding="6"
+                                         IsReadOnly="True" Cursor="Hand" Tag="{Binding}"
+                                         PreviewKeyDown="LocalHotkeyBox_PreviewKeyDown"
+                                         GotFocus="HotkeyBox_GotFocus"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="기본 단축키 (변경 불가, 참고용)" FontWeight="Bold" Margin="0,16,0,6"/>
+                <Border BorderBrush="#FFDDDDDD" BorderThickness="1" CornerRadius="3" Padding="10" Background="#FFFAFAFA">
+                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#FF555555">
+                        <Run FontWeight="Bold">노트 이동 (비편집)</Run>
+                        <LineBreak/>
+                        • Ctrl + 화살표 — 1px / Ctrl + Shift + 화살표 — 10px / 화살표 — 인접 노트 선택
+                        <LineBreak/><LineBreak/>
+                        <Run FontWeight="Bold">편집</Run>
+                        <LineBreak/>
+                        • Enter / 더블클릭 편집 시작, Esc 종료
+                        <LineBreak/>
+                        • Tab 들여쓰기 / Shift+Tab 내어쓰기 (표 행에선 셀 점프)
+                        <LineBreak/>
+                        • 표 행 끝 Enter — 헤더 다음이면 separator 자동 추가, 데이터 행이면 빈 행 추가
+                        <LineBreak/>
+                        • Ctrl+T 빈 표 삽입 / Alt+화살표 인접 텍스트 노트로 편집 이동
+                        <LineBreak/><LineBreak/>
+                        <Run FontWeight="Bold">그룹·선택</Run>
+                        <LineBreak/>
+                        • Ctrl+G 그룹 만들기 / Ctrl+Shift+G 해제 / Delete 삭제
+                        <LineBreak/>
+                        • 빈 캔버스 좌클릭 드래그 마키 / Shift+클릭 토글
+                        <LineBreak/><LineBreak/>
+                        <Run FontWeight="Bold">캔버스·클립보드</Run>
+                        <LineBreak/>
+                        • 휠클릭/우클릭 드래그 — 팬 / Ctrl+휠 — 줌
+                        <LineBreak/>
+                        • Ctrl+C 복사 / Ctrl+V 붙여넣기 / Ctrl+Z·Ctrl+Y·Ctrl+Shift+Z Undo/Redo
+                    </TextBlock>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

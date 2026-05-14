@@ -91,17 +91,13 @@
                             <ColumnDefinition x:Name="LineNumberColumn" Width="0"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <!-- 줄 번호 gutter: ShowLineNumbers ON 일 때만 폭 적용. ScrollViewer 동기화는 코드비하인드. -->
-                        <ScrollViewer Grid.Column="0" x:Name="LineNumberScroll"
-                                      VerticalScrollBarVisibility="Hidden"
-                                      HorizontalScrollBarVisibility="Disabled"
-                                      Background="#FF252525">
-                            <TextBlock x:Name="LineNumberBlock"
-                                       Foreground="#FF777777"
-                                       FontFamily="Consolas, Cascadia Mono"
-                                       Padding="6,6,4,6"
-                                       TextAlignment="Right"/>
-                        </ScrollViewer>
+                        <!-- 줄 번호 gutter: TextBox 각 visual line의 Y 좌표(GetRectFromCharacterIndex)에
+                             정확히 맞춰 절대 배치. LineHeight 불일치로 인한 누적 어긋남 회피.
+                             ShowLineNumbers ON 일 때만 LineNumberColumn 폭 적용. -->
+                        <Border Grid.Column="0" x:Name="LineNumberBorder"
+                                Background="#FF252525" ClipToBounds="True">
+                            <Canvas x:Name="LineNumberCanvas"/>
+                        </Border>
                         <TextBox x:Name="TextEditor" Grid.Column="1"
                                  Text="{Binding Content, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                  AcceptsReturn="True"

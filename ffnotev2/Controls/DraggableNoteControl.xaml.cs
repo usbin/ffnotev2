@@ -104,9 +104,13 @@ public partial class DraggableNoteControl : UserControl
     {
         var settings = CurrentSettings?.Settings;
         if (settings is null) return;
-        TextEditor.FontFamily = new System.Windows.Media.FontFamily(settings.NoteFontFamily);
+        var family = settings.EditorMonospace
+            ? "Consolas, Cascadia Mono, Courier New"
+            : settings.NoteFontFamily;
+        TextEditor.FontFamily = new System.Windows.Media.FontFamily(family);
         TextEditor.FontSize = settings.NoteFontSize;
-        LineNumberBlock.FontSize = settings.NoteFontSize;
+        // 줄 번호 폰트는 UpdateLineNumbers에서 매번 TextEditor 폰트로 동기화
+        UpdateLineNumbers();
     }
 
     private NoteItem? Item => DataContext as NoteItem;
@@ -292,47 +296,73 @@ public partial class DraggableNoteControl : UserControl
         var settings = CurrentSettings?.Settings;
         bool show = settings?.ShowLineNumbers == true;
         LineNumberColumn.Width = show ? new GridLength(40) : new GridLength(0);
-        LineNumberScroll.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        LineNumberBorder.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>
-    /// TextBox의 visual line(wrap 포함) 개수만큼 라인을 출력하되 logical 줄 시작에만 숫자,
-    /// wrap된 라인은 빈 줄. TextBox.LineCount는 wrap 적용된 시각 줄 수.
+    /// TextBox의 각 visual line(wrap 포함)에 대해 GetRectFromCharacterIndex로 정확한 Y 좌표를 얻고
+    /// 그 위치에 TextBlock을 절대 배치. LineHeight 불일치로 인한 누적 어긋남 없음.
+    /// 스크롤 오프셋도 직접 반영.
     /// </summary>
     private void UpdateLineNumbers()
     {
         if (LineNumberColumn.Width.Value <= 0) return;
+        if (TextEditor.ActualHeight <= 0) return;
+
+        LineNumberCanvas.Children.Clear();
         var t = TextEditor.Text ?? string.Empty;
         int visualLines = TextEditor.LineCount;
         if (visualLines <= 0) visualLines = 1;
 
-        var sb = new System.Text.StringBuilder(visualLines * 4);
+        double scrollOffset = _editorScrollViewer?.VerticalOffset ?? 0;
+
         int logical = 1;
         for (int v = 0; v < visualLines; v++)
         {
             int charIdx;
             try { charIdx = TextEditor.GetCharacterIndexFromLineIndex(v); }
-            catch { charIdx = -1; }
+            catch { continue; }
+
             bool isLogicalStart = v == 0
                 || (charIdx > 0 && charIdx <= t.Length && t[charIdx - 1] == '\n');
-            if (isLogicalStart) sb.Append(logical++);
-            if (v < visualLines - 1) sb.Append('\n');
+
+            if (isLogicalStart)
+            {
+                Rect rect;
+                try { rect = TextEditor.GetRectFromCharacterIndex(charIdx); }
+                catch { logical++; continue; }
+                if (double.IsInfinity(rect.Y) || double.IsNaN(rect.Y)) { logical++; continue; }
+
+                // GetRectFromCharacterIndex는 TextBox 콘텐츠 좌표(스크롤 오프셋 이미 반영된 visual 좌표).
+                double y = rect.Y;
+                // 가시 영역 안만 그림 (스크롤 밖은 스킵)
+                if (y < -rect.Height || y > TextEditor.ActualHeight) { logical++; continue; }
+
+                var tb = new TextBlock
+                {
+                    Text = logical.ToString(),
+                    Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x77, 0x77, 0x77)),
+                    FontFamily = TextEditor.FontFamily,
+                    FontSize = TextEditor.FontSize,
+                    TextAlignment = TextAlignment.Right,
+                    Width = LineNumberColumn.Width.Value - 6,
+                };
+                Canvas.SetLeft(tb, 0);
+                Canvas.SetTop(tb, y);
+                LineNumberCanvas.Children.Add(tb);
+                logical++;
+            }
         }
-        LineNumberBlock.Text = sb.ToString();
-        LineNumberBlock.FontSize = TextEditor.FontSize;
     }
 
     private void TextEditor_TextChanged(object sender, TextChangedEventArgs e)
     {
-        // 텍스트 변경 후 layout이 끝나야 LineCount/CharIndex가 정확
         Dispatcher.BeginInvoke(new Action(UpdateLineNumbers), DispatcherPriority.Loaded);
     }
 
     private void TextEditor_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        // 노트 폭 변경 → wrap 위치 변경 → 줄 번호 재계산
-        if (e.WidthChanged)
-            Dispatcher.BeginInvoke(new Action(UpdateLineNumbers), DispatcherPriority.Loaded);
+        Dispatcher.BeginInvoke(new Action(UpdateLineNumbers), DispatcherPriority.Loaded);
     }
 
     private ScrollViewer? _editorScrollViewer;
@@ -342,11 +372,8 @@ public partial class DraggableNoteControl : UserControl
         var sv = FindDescendant<ScrollViewer>(TextEditor);
         if (sv is null) return;
         _editorScrollViewer = sv;
-        sv.ScrollChanged += (_, ev) =>
-        {
-            if (LineNumberScroll.Visibility != Visibility.Visible) return;
-            LineNumberScroll.ScrollToVerticalOffset(ev.VerticalOffset);
-        };
+        // 스크롤 시 줄 번호 위치도 다시 그림 (GetRectFromCharacterIndex는 스크롤된 visual 좌표 반환)
+        sv.ScrollChanged += (_, _) => UpdateLineNumbers();
     }
 
     private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject

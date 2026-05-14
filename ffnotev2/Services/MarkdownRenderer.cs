@@ -259,7 +259,7 @@ public static class MarkdownRenderer
             foreach (var blk in mdTable)
                 if (blk is MdTableRow row && row.Count > colCount) colCount = row.Count;
         }
-        for (int i = 0; i < colCount; i++) table.Columns.Add(new TableColumn());
+        for (int i = 0; i < colCount; i++) table.Columns.Add(new TableColumn { Width = GridLength.Auto });
 
         var headerGroup = new TableRowGroup();
         var bodyGroup = new TableRowGroup();
@@ -356,7 +356,7 @@ public static class MarkdownRenderer
             BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
             BorderThickness = new Thickness(0, 1, 0, 1),
         };
-        for (int i = 0; i < cols.Count; i++) table.Columns.Add(new TableColumn());
+        for (int i = 0; i < cols.Count; i++) table.Columns.Add(new TableColumn { Width = GridLength.Auto });
         var headerGroup = new TableRowGroup();
         var bodyGroup = new TableRowGroup();
         table.RowGroups.Add(headerGroup);

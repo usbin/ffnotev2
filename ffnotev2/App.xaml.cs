@@ -55,7 +55,6 @@ public partial class App : Application
     private MainWindow? _mainWindow;
     private OverlayWindow? _overlayWindow;
     private NotifyIcon? _tray;
-    private ToolStripMenuItem? _autoStartMenuItem;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -156,19 +155,11 @@ public partial class App : Application
             Visible = true
         };
 
-        _autoStartMenuItem = new ToolStripMenuItem("Windows 시작 시 자동 실행")
-        {
-            Checked = SettingsService.Settings.AutoStartOnLogin,
-            CheckOnClick = true
-        };
-        _autoStartMenuItem.Click += (_, _) => OnAutoStartToggleClicked();
-
         var menu = new ContextMenuStrip();
         menu.Items.Add("노트 열기", null, (_, _) => ShowMain());
         menu.Items.Add("오버레이 토글", null, (_, _) => ToggleOverlay());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("단축키 설정...", null, (_, _) => ShowHotkeySettings());
-        menu.Items.Add(_autoStartMenuItem);
+        menu.Items.Add("설정...", null, (_, _) => ShowSettings());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("종료", null, (_, _) => ExitApp());
         _tray.ContextMenuStrip = menu;
@@ -184,23 +175,6 @@ public partial class App : Application
         else if (!wantEnabled && isEnabled) AutoStart.Disable();
         // 켜져있어야 하면 매번 경로 갱신 (사용자가 .exe를 옮겼을 수 있음)
         else if (wantEnabled && isEnabled) AutoStart.Enable();
-    }
-
-    private void OnAutoStartToggleClicked()
-    {
-        if (_autoStartMenuItem is null) return;
-        var enabled = _autoStartMenuItem.Checked;  // CheckOnClick=true → 클릭 시점에 이미 토글된 값
-        var ok = AutoStart.SetEnabled(enabled);
-        if (!ok)
-        {
-            // Enable 실패 (보통 ProcessPath가 비어있는 경우는 거의 없음)
-            _autoStartMenuItem.Checked = false;
-            MessageBox.Show("자동 실행 등록에 실패했습니다.", "ffnote v2",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-        SettingsService.Settings.AutoStartOnLogin = enabled;
-        SettingsService.Save();
     }
 
     public void ShowMain()
@@ -231,27 +205,46 @@ public partial class App : Application
         _overlayWindow.ToggleClickThrough();
     }
 
-    public void ShowHotkeySettings()
+    public void ShowSettings()
     {
         if (_mainWindow is null) return;
         ShowMain();
 
-        var dlg = new HotkeySettingsDialog(SettingsService.Settings) { Owner = _mainWindow };
-        if (dlg.ShowDialog() == true)
-        {
-            SettingsService.Settings.ShowMain = dlg.Result.ShowMain;
-            SettingsService.Settings.ToggleOverlay = dlg.Result.ToggleOverlay;
-            SettingsService.Settings.ToggleClickThrough = dlg.Result.ToggleClickThrough;
-            SettingsService.Settings.NotebookSwitches = dlg.Result.NotebookSwitches;
-            SettingsService.Settings.ShowLineNumbers = dlg.Result.ShowLineNumbers;
-            SettingsService.Save();
+        var dlg = new SettingsDialog(SettingsService.Settings) { Owner = _mainWindow };
+        if (dlg.ShowDialog() != true) return;
 
-            if (!_mainWindow.ReregisterHotkeys())
+        var s = SettingsService.Settings;
+        s.ShowMain = dlg.Result.ShowMain;
+        s.ToggleOverlay = dlg.Result.ToggleOverlay;
+        s.ToggleClickThrough = dlg.Result.ToggleClickThrough;
+        s.NotebookSwitches = dlg.Result.NotebookSwitches;
+        s.NoteFontFamily = dlg.Result.NoteFontFamily;
+        s.NoteFontSize = dlg.Result.NoteFontSize;
+        s.ShowLineNumbers = dlg.Result.ShowLineNumbers;
+        s.EditorMonospace = dlg.Result.EditorMonospace;
+
+        // 자동 시작: 설정값 변경 + 레지스트리 동기화
+        if (s.AutoStartOnLogin != dlg.Result.AutoStartOnLogin)
+        {
+            var enabled = dlg.Result.AutoStartOnLogin;
+            if (!AutoStart.SetEnabled(enabled))
             {
-                MessageBox.Show(
-                    "일부 단축키 등록에 실패했습니다.\n다른 앱이 같은 조합을 점유 중일 수 있습니다.",
-                    "ffnote v2", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("자동 실행 등록에 실패했습니다.", "ffnote v2",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
             }
+            else
+            {
+                s.AutoStartOnLogin = enabled;
+            }
+        }
+
+        SettingsService.Save();
+
+        if (!_mainWindow.ReregisterHotkeys())
+        {
+            MessageBox.Show(
+                "일부 단축키 등록에 실패했습니다.\n다른 앱이 같은 조합을 점유 중일 수 있습니다.",
+                "ffnote v2", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
