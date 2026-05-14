@@ -382,6 +382,229 @@ public partial class DraggableNoteControl : UserControl
             UpdateLineNumbers();
             _tableAdorner?.InvalidateVisual();
         }), DispatcherPriority.Loaded);
+        ScheduleAlignTable();
+    }
+
+    // 표 자동 정렬: 캐럿이 표 행 안일 때 컬럼별 max display width로 모든 행을 공백 패딩.
+    // 매 키 직후 즉시 동작하면 한글 IME 합성 중 Text 교체로 자모 분리 위험 → 300ms 디바운스 + Background priority.
+    private DispatcherTimer? _alignTimer;
+    private bool _suppressAlign;
+
+    private void ScheduleAlignTable()
+    {
+        if (_suppressAlign) return;
+        if (_alignTimer is null)
+        {
+            _alignTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            _alignTimer.Tick += (_, _) =>
+            {
+                _alignTimer!.Stop();
+                AlignTableAtCaret();
+            };
+        }
+        _alignTimer.Stop();
+        _alignTimer.Start();
+    }
+
+    private void AlignTableAtCaret()
+    {
+        if (EditorContainer.Visibility != Visibility.Visible) return;
+        var t = TextEditor.Text ?? string.Empty;
+        if (t.Length == 0) return;
+        int caret = TextEditor.CaretIndex;
+        int ls = LineStart(t, caret);
+        int le = LineEnd(t, caret);
+        if (!IsTableRowLine(t, ls, le)) return;
+
+        // 표 영역 — 위/아래로 표 행 확장
+        int tableStart = ls;
+        while (tableStart > 0)
+        {
+            int prevEnd = tableStart - 1; // \n 위치
+            if (prevEnd < 0 || t[prevEnd] != '\n') break;
+            int prevStart = LineStart(t, prevEnd > 0 ? prevEnd - 1 : 0);
+            if (!IsTableRowLine(t, prevStart, prevEnd)) break;
+            tableStart = prevStart;
+        }
+        int tableEnd = le;
+        while (tableEnd < t.Length)
+        {
+            if (t[tableEnd] != '\n') break;
+            int nextStart = tableEnd + 1;
+            if (nextStart > t.Length) break;
+            int nextEnd = LineEnd(t, nextStart);
+            if (!IsTableRowLine(t, nextStart, nextEnd)) break;
+            tableEnd = nextEnd;
+        }
+
+        var tableText = t.Substring(tableStart, tableEnd - tableStart);
+        var lines = tableText.Split('\n');
+
+        // 각 행을 cell list로 split + separator 판정
+        var rows = new List<string[]>();
+        var isSep = new List<bool>();
+        int colCount = 0;
+        foreach (var ln in lines)
+        {
+            var trimmed = ln.TrimEnd('\r');
+            var cells = SplitTableCells(trimmed);
+            if (cells.Length > colCount) colCount = cells.Length;
+            rows.Add(cells);
+            isSep.Add(IsSeparatorOnly(trimmed));
+        }
+        if (colCount == 0) return;
+
+        // 컬럼별 max display width (separator 행 제외)
+        var maxW = new int[colCount];
+        for (int ri = 0; ri < rows.Count; ri++)
+        {
+            if (isSep[ri]) continue;
+            for (int ci = 0; ci < rows[ri].Length && ci < colCount; ci++)
+            {
+                int w = DisplayWidth(rows[ri][ci]);
+                if (w > maxW[ci]) maxW[ci] = w;
+            }
+        }
+        for (int ci = 0; ci < colCount; ci++) if (maxW[ci] < 3) maxW[ci] = 3;
+
+        // 재조립
+        var sb = new System.Text.StringBuilder();
+        for (int ri = 0; ri < rows.Count; ri++)
+        {
+            sb.Append('|');
+            for (int ci = 0; ci < colCount; ci++)
+            {
+                var cell = ci < rows[ri].Length ? rows[ri][ci] : string.Empty;
+                if (isSep[ri])
+                {
+                    sb.Append(new string('-', maxW[ci] + 2));
+                }
+                else
+                {
+                    int pad = maxW[ci] - DisplayWidth(cell);
+                    sb.Append(' ').Append(cell).Append(new string(' ', Math.Max(0, pad))).Append(' ');
+                }
+                sb.Append('|');
+            }
+            if (ri < rows.Count - 1) sb.Append('\n');
+        }
+        var newTableText = sb.ToString();
+        if (newTableText == tableText) return;
+
+        // 캐럿 보존: 표 안이면 행/셀 위치 보존, 표 밖이면 길이 차이만큼 보정
+        int newCaret = caret;
+        if (caret >= tableStart && caret <= tableEnd)
+        {
+            // 같은 행·셀 + 셀 안에서의 글자 offset 보존
+            var (oldRowIdx, oldCellIdx, oldOffsetInCell) = LocateCaretInTable(tableText, caret - tableStart);
+            newCaret = tableStart + LocateCharInTable(newTableText, oldRowIdx, oldCellIdx, oldOffsetInCell);
+        }
+        else if (caret > tableEnd)
+        {
+            newCaret = caret + (newTableText.Length - tableText.Length);
+        }
+
+        _suppressAlign = true;
+        try
+        {
+            var before = t.Substring(0, tableStart);
+            var after = t.Substring(tableEnd);
+            TextEditor.Text = before + newTableText + after;
+            TextEditor.CaretIndex = Math.Clamp(newCaret, 0, TextEditor.Text.Length);
+        }
+        finally { _suppressAlign = false; }
+    }
+
+    // tableText 안에서 char offset → (row index, cell index, cell 안 글자 offset)
+    private static (int Row, int Cell, int OffsetInCell) LocateCaretInTable(string tableText, int offsetInTable)
+    {
+        int row = 0, cell = 0, offsetInCell = 0;
+        int p = 0;
+        bool inCell = false;
+        while (p < offsetInTable && p < tableText.Length)
+        {
+            char ch = tableText[p];
+            if (ch == '\n') { row++; cell = 0; offsetInCell = 0; inCell = false; }
+            else if (ch == '|') { cell++; offsetInCell = 0; inCell = true; }
+            else if (inCell) offsetInCell++;
+            p++;
+        }
+        return (row, Math.Max(0, cell - 1), offsetInCell);
+    }
+
+    // newTableText에서 (row, cell, offsetInCell) → char index 안에서의 위치
+    private static int LocateCharInTable(string newTableText, int targetRow, int targetCell, int targetOffset)
+    {
+        int row = 0, cellIdx = -1;
+        int p = 0;
+        while (p < newTableText.Length)
+        {
+            char ch = newTableText[p];
+            if (row == targetRow && cellIdx == targetCell)
+            {
+                // 셀 안 내용 부분 — 패딩 좌측 공백 1개 + 실제 컨텐츠
+                // 셀 시작(`|` 다음)부터 다음 `|`까지가 셀 내용 영역
+                int cellStart = p;
+                int cellEnd = newTableText.IndexOf('|', p);
+                if (cellEnd < 0) cellEnd = newTableText.Length;
+                // 셀 내용 = " <content><padding> " → trim된 컨텐츠를 찾으려면 좌측 공백 1개 스킵
+                int contentStart = cellStart + (cellStart < newTableText.Length && newTableText[cellStart] == ' ' ? 1 : 0);
+                return Math.Min(contentStart + targetOffset, cellEnd);
+            }
+            if (ch == '\n') { row++; cellIdx = -1; }
+            else if (ch == '|') { cellIdx++; }
+            p++;
+        }
+        return newTableText.Length;
+    }
+
+    private static string[] SplitTableCells(string row)
+    {
+        if (row.Length < 2 || row[0] != '|' || row[^1] != '|') return new[] { row.Trim() };
+        var inner = row.Substring(1, row.Length - 2);
+        var parts = inner.Split('|');
+        for (int i = 0; i < parts.Length; i++) parts[i] = parts[i].Trim();
+        return parts;
+    }
+
+    private static bool IsTableRowLine(string text, int start, int endExclusive)
+    {
+        int e = endExclusive;
+        if (e > start && text[e - 1] == '\r') e--;
+        int len = e - start;
+        if (len < 3) return false;
+        if (text[start] != '|' || text[e - 1] != '|') return false;
+        for (int i = start + 1; i < e - 1; i++)
+            if (text[i] == '|') return true;
+        return false;
+    }
+
+    private static bool IsSeparatorOnly(string line)
+    {
+        if (line.Length < 3 || line[0] != '|' || line[^1] != '|') return false;
+        foreach (var ch in line) if (ch != '|' && ch != '-' && ch != ':' && ch != ' ') return false;
+        return line.Contains('-');
+    }
+
+    // 한글/CJK 글자는 monospace에서도 영문의 약 2배 폭 — display width 2로 카운트
+    private static int DisplayWidth(string s)
+    {
+        int w = 0;
+        foreach (var ch in s) w += IsWideChar(ch) ? 2 : 1;
+        return w;
+    }
+
+    private static bool IsWideChar(char ch)
+    {
+        int c = ch;
+        return (c >= 0xAC00 && c <= 0xD7A3)   // 한글 음절
+            || (c >= 0x1100 && c <= 0x11FF)   // 한글 자모
+            || (c >= 0x3130 && c <= 0x318F)   // 한글 호환 자모
+            || (c >= 0x4E00 && c <= 0x9FFF)   // CJK 통합
+            || (c >= 0x3000 && c <= 0x303F)   // CJK 기호
+            || (c >= 0xFF00 && c <= 0xFFEF)   // 전각
+            || (c >= 0x30A0 && c <= 0x30FF)   // 가타카나
+            || (c >= 0x3040 && c <= 0x309F);  // 히라가나
     }
 
     private void TextEditor_SizeChanged(object sender, SizeChangedEventArgs e)

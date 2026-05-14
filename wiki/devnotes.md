@@ -1,6 +1,10 @@
 <!-- 최종 수정: 2026-05-14 -->
 # 개발 노트
 
+## 최근 변경 (2026-05-14, 편집 표 자동 정렬)
+
+- **편집 모드 표 자동 정렬**: 캐럿이 표 행 안에 있을 때 `TextChanged` 후 300ms 디바운스(`DispatcherTimer`)로 표 전체를 재포맷. 컬럼별 max display width(`DisplayWidth` — 한글/CJK는 2, ASCII는 1)로 모든 셀에 좌우 공백 패딩. separator 행은 `---`로 같은 폭. 재조립 후 `TextEditor.Text` 통째 교체 + 캐럿을 같은 (row, cell, offsetInCell)로 복원(`LocateCaretInTable`/`LocateCharInTable`). 한글 IME 합성 중에 Text 교체 시 자모 분리 위험이 있으나 300ms 디바운스로 보통 합성 종료 후 동작. 자체 갱신이 재귀 호출 안 되도록 `_suppressAlign` 플래그. 새 헬퍼: `SplitTableCells`/`IsSeparatorOnly`/`DisplayWidth`/`IsWideChar`.
+
 ## 최근 변경 (2026-05-14, 표 그리드 fix + 셀 폭 측정)
 
 - **편집 모드 그리드 정확도 fix**: v1.0.25에서 첫 행 `|` X로 전체 표 세로선을 그려 다른 행의 `|`와 어긋남. 또 cell 좌측 경계(`r.X`)를 사용해 monospace `|` glyph(cell 중앙)와 시작부터 misalign. 수정: 각 행을 독립 박스로 그리고 세로선 X = `r.X + r.Width / 2`(cell 중앙). 글자 늘어나도 그 행의 자기 `|` 위치 따라 사각형이 이동.
