@@ -225,6 +225,21 @@ public class ViController
             or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin)
             return false;
 
+        // Esc: Visual → Normal, Normal에선 selection 해제·pending 취소
+        if (e.Key == Key.Escape)
+        {
+            if (isVisual)
+            {
+                SetMode(Mode.Normal);
+                return true;
+            }
+            _editor.SelectionLength = 0;
+            _pending = null;
+            _pendingTimer.Stop();
+            StateChanged?.Invoke();
+            return true;
+        }
+
         // 화살표는 Normal에서도 친절하게 동작하도록 허용 (vi 순수성 < 사용자 편의)
         if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down)
         {

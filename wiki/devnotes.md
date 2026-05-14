@@ -1,6 +1,12 @@
 <!-- 최종 수정: 2026-05-14 -->
 # 개발 노트
 
+## 최근 변경 (2026-05-14, 핫픽스)
+
+- **편집 종료 트리거 변경**: Esc → Shift+Enter. Esc는 Vi Normal 모드 진입(혹은 Visual→Normal)으로 양보. Vi OFF 환경에서도 Esc는 무동작 — 명시적 종료는 Shift+Enter 또는 vi `:q`만. `DraggableNoteControl.TextEditor_PreviewKeyDown` 맨 앞에 Shift+Enter 분기 추가, 기존 Esc → FocusCanvas 종료 분기 제거.
+- **표 Enter separator 자동 추가 버그 수정**: 데이터 행 마지막 줄에서 Enter치면 separator(`|---|---|`)가 또 생기던 문제. `nextLs >= text.Length`에서 무조건 needSeparator=true로 두던 로직을 `IsHeaderRow` 헬퍼로 교체 — 위쪽 줄이 이미 표 행이면 현재 줄은 헤더 아님으로 판정. 또한 헤더 행 끝에서 Enter 쳤는데 이미 separator가 아래에 있으면 새 데이터 행을 separator 다음에 삽입(표 구조 보존).
+- **`ShowLineNumbers` 기본값 ON**: 옵션이 단축키 설정에 묻혀 있어 발견성 낮음 → 기본 활성. 끄려면 단축키 설정 → 편집기 옵션에서 체크 해제.
+
 ## 최근 변경 (2026-05-14)
 
 - **마크다운 파이프 테이블 렌더링**: `Services/MarkdownRenderer.cs`의 `MarkdownPipeline`에 `UsePipeTables()` 추가. `ConvertBlock` switch에 `Markdig.Extensions.Tables.Table` 분기 + `BuildTable` 헬퍼 추가 — WPF `Table`/`TableRowGroup`/`TableRow`/`TableCell`로 매핑. 헤더 굵게 + #3A3A3A 배경, 본문 행 하단 1px #333 가로선, 컬럼 정렬은 `TableColumnDefinition.Alignment` → `TextAlignment` 변환.

@@ -44,5 +44,5 @@ public class AppSettings
     public bool ViStartInNormal { get; set; }
 
     /// <summary>편집 모드에서 좌측 줄 번호 표시.</summary>
-    public bool ShowLineNumbers { get; set; }
+    public bool ShowLineNumbers { get; set; } = true;
 }

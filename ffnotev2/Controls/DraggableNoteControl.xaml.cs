@@ -516,34 +516,28 @@ public partial class DraggableNoteControl : UserControl
 
     private void TextEditor_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        // Vi 모드: ViController에 우선 위임. Normal 상태에서 Esc는 편집 종료, Insert에선 Normal 전환.
+        // Shift+Enter: 편집 종료 (캔버스 복귀). Esc가 vi Normal 진입용으로 빠졌으므로 명시적 종료 트리거.
+        if (e.Key == Key.Return && (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+        {
+            if (Window.GetWindow(this) is MainWindow mw) mw.FocusCanvas();
+            e.Handled = true;
+            return;
+        }
+
+        // Vi 모드: ViController에 우선 위임. Esc는 Insert→Normal 또는 Visual→Normal.
+        // 편집 종료는 Shift+Enter 또는 vi의 :q.
         if (_vi is not null)
         {
             bool inInsert = _vi.CurrentMode == ViController.Mode.Insert;
-            // Normal 모드의 Esc → 편집 종료 (vi-style :q 의 단축)
-            if (!inInsert && e.Key == Key.Escape && _vi.CurrentMode == ViController.Mode.Normal)
-            {
-                if (Window.GetWindow(this) is MainWindow mw) mw.FocusCanvas();
-                e.Handled = true;
-                return;
-            }
             if (_vi.OnPreviewKeyDown(e))
             {
                 e.Handled = true;
                 return;
             }
-            // Vi Normal 상태에선 표 보조도 비활성
+            // Vi Normal/Visual/Command 상태에선 일반 TextBox 입력 차단
             if (!inInsert) { e.Handled = true; return; }
         }
-
-        if (e.Key == Key.Escape)
-        {
-            // ESC로 편집 종료. CanvasArea(Focusable=True)에 포커스를 옮겨 LostFocus 트리거 +
-            // 이후 화살표가 Window_PreviewKeyDown에 도달하도록 함
-            if (Window.GetWindow(this) is MainWindow mw) mw.FocusCanvas();
-            e.Handled = true;
-            return;
-        }
+        // Vi OFF + Esc: 양보 (TextBox 자체 동작 — 무동작). 편집 종료는 Shift+Enter로만.
 
         // Tab / Shift+Tab: 표 안이면 다음/이전 셀로 점프, 그 외엔 들여쓰기 / 내어쓰기.
         if (e.Key == Key.Tab)
@@ -859,23 +853,26 @@ public partial class DraggableNoteControl : UserControl
         int cols = CountColumns(line);
         if (cols <= 0) return false;
 
-        // 다음 줄이 separator인지, 표 행이 더 이어지는지 확인.
-        // 헤더 줄 다음에 separator가 없으면 자동 보강.
-        int nextLs = le < text.Length && text[le] == '\n' ? le + 1 : le;
-        bool needSeparator = false;
-        if (nextLs >= text.Length)
+        // 헤더 판정: 위쪽에 표 행이 없으면 현재 줄이 헤더.
+        bool isHeader = IsHeaderRow(text, ls);
+        // 바로 아래 줄이 이미 separator인지
+        bool separatorBelow = false;
+        if (le < text.Length && text[le] == '\n')
         {
-            needSeparator = true;
+            int nls = le + 1;
+            int nle = LineEnd(text, nls);
+            var nline = text.Substring(nls, nle - nls);
+            separatorBelow = IsSeparatorLine(nline);
         }
-        else
+        bool needSeparator = isHeader && !separatorBelow;
+
+        // 헤더이고 separator가 이미 아래 있으면 separator 다음에 새 데이터 행 삽입 (그러지 않으면 표가 깨짐)
+        int insertAt = le;
+        if (isHeader && separatorBelow && le < text.Length && text[le] == '\n')
         {
-            int nextLe = LineEnd(text, nextLs);
-            var nextLine = text.Substring(nextLs, nextLe - nextLs);
-            if (!IsSeparatorLine(nextLine) && !IsTableRowLine(nextLine))
-                needSeparator = true;
-            // nextLine이 표 행(데이터)이면 헤더라고 단정 못 하지만, separator 없는 데이터 행만 이어진 경우는 드뭄 — 그대로 양보
-            else if (IsTableRowLine(nextLine) && !IsSeparatorLine(nextLine))
-                needSeparator = false;
+            int nls = le + 1;
+            int nle = LineEnd(text, nls);
+            insertAt = nle;
         }
 
         var sb = new System.Text.StringBuilder();
@@ -887,14 +884,24 @@ public partial class DraggableNoteControl : UserControl
         sb.Append("\n|");
         for (int i = 0; i < cols; i++) sb.Append("   |");
         var insert = sb.ToString();
-        TextEditor.Text = text.Insert(le, insert);
-        // 캐럿: 새 데이터 행의 첫 셀 = le + insert.Length - (마지막 행 길이 - "|   ".Length까지)
-        // 단순 계산: insert 안에서 마지막 "\n|"가 새 행 시작
+        TextEditor.Text = text.Insert(insertAt, insert);
+        // insert 안에서 마지막 "\n|"가 새 데이터 행 시작
         int lastNewLine = insert.LastIndexOf('\n');
-        int caretAt = le + lastNewLine + 2;  // '\n|' 다음
+        int caretAt = insertAt + lastNewLine + 2;  // '\n|' 다음
         if (caretAt < TextEditor.Text.Length && TextEditor.Text[caretAt] == ' ') caretAt++;
         TextEditor.CaretIndex = caretAt;
         return true;
+    }
+
+    // 현재 표 행이 헤더인가? 위쪽에 또 다른 표 행이 있으면 헤더 아님.
+    private static bool IsHeaderRow(string text, int rowLs)
+    {
+        if (rowLs == 0) return true;
+        if (text[rowLs - 1] != '\n') return true;
+        int prevEnd = rowLs - 1;
+        int prevStart = LineStart(text, prevEnd > 0 ? prevEnd - 1 : 0);
+        var prev = text.Substring(prevStart, prevEnd - prevStart);
+        return !IsTableRowLine(prev);
     }
 
     private void InsertTableTemplate()
