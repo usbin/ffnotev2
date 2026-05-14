@@ -76,6 +76,18 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
+                <TextBlock Text="편집기 옵션" FontWeight="Bold" Margin="0,16,0,6"/>
+                <Border BorderBrush="#FFDDDDDD" BorderThickness="1" CornerRadius="3" Padding="10" Background="#FFFAFAFA" Margin="0,0,0,6">
+                    <StackPanel>
+                        <CheckBox x:Name="ViModeCheck" Content="Vi 모드 사용 (h/j/k/l 이동, i 편집 진입, Esc Normal, dd/yy/p, : 명령 등)"
+                                  Margin="0,0,0,6"/>
+                        <CheckBox x:Name="ViStartInNormalCheck" Content="편집 진입 시 Normal 모드로 시작 (꺼두면 Insert로 시작)"
+                                  Margin="20,0,0,6"/>
+                        <CheckBox x:Name="ShowLineNumbersCheck" Content="편집 모드에서 줄 번호 표시"
+                                  Margin="0,0,0,0"/>
+                    </StackPanel>
+                </Border>
+
                 <TextBlock Text="기본 단축키 (변경 불가, 참고용)" FontWeight="Bold" Margin="0,16,0,6"/>
                 <Border BorderBrush="#FFDDDDDD" BorderThickness="1" CornerRadius="3" Padding="10" Background="#FFFAFAFA">
                     <StackPanel>

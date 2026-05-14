@@ -38,8 +38,14 @@
                     MouseMove="TitleBar_MouseMove"
                     MouseLeftButtonUp="TitleBar_MouseLeftButtonUp"
                     Cursor="SizeAll">
-                <TextBlock Text="{Binding Type}" Foreground="#FFAAAAAA"
-                           VerticalAlignment="Center" Margin="6,0,0,0" FontSize="11"/>
+                <Grid>
+                    <TextBlock Text="{Binding Type}" Foreground="#FFAAAAAA"
+                               VerticalAlignment="Center" Margin="6,0,0,0" FontSize="11"/>
+                    <TextBlock x:Name="ViModeBadge" Visibility="Collapsed"
+                               HorizontalAlignment="Right" VerticalAlignment="Center"
+                               Margin="0,0,6,0" FontSize="10" FontWeight="Bold"
+                               Foreground="#FFFFAA66"/>
+                </Grid>
             </Border>
 
             <!-- 콘텐츠 영역. 노트가 선택된 상태(IsSelected=true)면 본문 어디서든 드래그 가능.
@@ -86,20 +92,49 @@
                          InputMethod.* 명시 제거: TextBlock↔TextBox 스왑(IsReadOnly 회피)에서
                          IME 컨텍스트 강제 활성화용이었으나 현재 스왑 구조엔 불필요하고,
                          명시가 IME 결합 도중 caret 안정성을 해치는 케이스가 있어 제거. -->
-                    <TextBox x:Name="TextEditor"
-                             Visibility="Collapsed"
-                             Text="{Binding Content, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                             AcceptsReturn="True"
-                             TextWrapping="Wrap"
-                             VerticalScrollBarVisibility="Auto"
-                             Background="Transparent"
-                             Foreground="#FFEEEEEE"
-                             CaretBrush="#FFEEEEEE"
-                             BorderThickness="0"
-                             Padding="6"
-                             IsUndoEnabled="False"
-                             LostFocus="TextEditor_LostFocus"
-                             PreviewKeyDown="TextEditor_PreviewKeyDown"/>
+                    <Grid x:Name="EditorContainer" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition x:Name="LineNumberColumn" Width="0"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <!-- 줄 번호 gutter: ShowLineNumbers ON 일 때만 폭 적용. ScrollViewer 동기화는 코드비하인드. -->
+                            <ScrollViewer Grid.Column="0" x:Name="LineNumberScroll"
+                                          VerticalScrollBarVisibility="Hidden"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          Background="#FF252525">
+                                <TextBlock x:Name="LineNumberBlock"
+                                           Foreground="#FF777777"
+                                           FontFamily="Consolas, Cascadia Mono"
+                                           Padding="6,6,4,6"
+                                           TextAlignment="Right"/>
+                            </ScrollViewer>
+                            <TextBox x:Name="TextEditor" Grid.Column="1"
+                                     Text="{Binding Content, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     Background="Transparent"
+                                     Foreground="#FFEEEEEE"
+                                     CaretBrush="#FFEEEEEE"
+                                     BorderThickness="0"
+                                     Padding="6"
+                                     IsUndoEnabled="False"
+                                     LostFocus="TextEditor_LostFocus"
+                                     PreviewKeyDown="TextEditor_PreviewKeyDown"
+                                     TextChanged="TextEditor_TextChanged"
+                                     PreviewTextInput="TextEditor_PreviewTextInput"/>
+                        </Grid>
+                        <Border Grid.Row="1" x:Name="CommandBar" Visibility="Collapsed"
+                                Background="#FF1A1A1A" Padding="6,2">
+                            <TextBlock x:Name="CommandText" Foreground="#FFEEEEEE"
+                                       FontFamily="Consolas, Cascadia Mono"/>
+                        </Border>
+                    </Grid>
                 </Grid>
                 <!-- 이미지: 빠른 스케일링 모드(드래그 리사이즈 시 매 프레임 부하 감소) -->
                 <Image Visibility="{Binding Type, Converter={StaticResource TypeVis}, ConverterParameter=Image}"

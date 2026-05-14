@@ -1,5 +1,14 @@
-<!-- 최종 수정: 2026-05-03 -->
+<!-- 최종 수정: 2026-05-14 -->
 # 개발 노트
+
+## 최근 변경 (2026-05-14)
+
+- **마크다운 파이프 테이블 렌더링**: `Services/MarkdownRenderer.cs`의 `MarkdownPipeline`에 `UsePipeTables()` 추가. `ConvertBlock` switch에 `Markdig.Extensions.Tables.Table` 분기 + `BuildTable` 헬퍼 추가 — WPF `Table`/`TableRowGroup`/`TableRow`/`TableCell`로 매핑. 헤더 굵게 + #3A3A3A 배경, 본문 행 하단 1px #333 가로선, 컬럼 정렬은 `TableColumnDefinition.Alignment` → `TextAlignment` 변환.
+- **표 편집 스마트 보조**: `Controls/DraggableNoteControl.xaml.cs`의 `TextEditor_PreviewKeyDown`에 Tab/Enter/Ctrl+T 분기. 표 행 판정 헬퍼(`IsTableRowLine`/`IsSeparatorLine`/`CountColumns`)로 캐럿이 표 안에 있을 때만 동작 — 그 외엔 기존 들여쓰기/기본 동작 유지. Tab: 다음 셀(첫 공백 1개 스킵), Shift+Tab: 이전 셀, 행 마지막에서 Tab은 다음 행 첫 셀 또는 자동 새 행 추가. Enter는 헤더 줄 끝에서 separator+빈 데이터 행 자동, 데이터 행 끝에선 빈 행 1개 추가. Ctrl+T는 `Dialogs/InsertTableDialog`로 N×M 빈 표 마크다운 삽입.
+- **Mini-Vi 모드 (옵트인)**: `AppSettings.ViModeEnabled` + `ViStartInNormal` + `ShowLineNumbers` 추가, `HotkeySettingsDialog` 하단에 "편집기 옵션" 섹션. `Services/ViController.cs` 신규 — TextBox 한 개에 대한 상태 머신(`Mode { Insert, Normal, VisualChar, VisualLine, Command }`). `OnPreviewKeyDown(KeyEventArgs)`가 호스트의 `TextEditor_PreviewKeyDown`에서 호출되어 Handled 여부 반환. 자체 undo 스택(`LinkedList<TextSnapshot>` 양방향 — TextBox `IsUndoEnabled=false` 우회). Visual 모드는 `_visualAnchor`와 캐럿 사이 선택, VisualLine은 줄 단위 확장. `:` Command 모드는 `OnTextInput`으로 글자 누적, Enter로 실행(`:q`/`:wq`/`:x` → `QuitRequested` 이벤트, `:w` no-op). 한글 IME는 `Key.ImeProcessed`/`Key.DeadCharProcessed` 키를 무조건 양보해 충돌 회피.
+  - 캔버스 매핑은 `MainWindow.TryHandleCanvasVi` — `Window_PreviewKeyDown` 앞부분에 vi 활성 + TextBox 밖 + ListBox 밖일 때 우선 처리. `h/j/k/l` 이동, `Ctrl+hjkl` nudge, `i`/`a`/`Enter` 편집, `o`/`O` 새 노트(아래/위), `x` 삭제, `dd`/`yy`/`p`/`u`/`Ctrl+r`/`gg`/`G`. 연속 키는 `_viPending` + 1초 만료.
+  - 편집 모드 UI: 타이틀바 우측 모드 배지(`ViModeBadge`: INS/NRM/VIS/V-LN/CMD), Normal에서 `TextEditor.CaretBrush`를 주황(#FF9933)로, Command 모드는 하단 `CommandBar`에 `:cmd...` 표시.
+  - **줄 번호 gutter**: `EditorContainer`를 Grid+ColumnDefinitions로 재구성 — 좌측 `LineNumberScroll(ScrollViewer)` + 우측 `TextEditor`. `ShowLineNumbers` ON일 때만 36px 폭. `UpdateLineNumbers`가 `TextChanged`에서 줄 수만큼 1..N 문자열 갱신, `HookEditorScroll`이 visual tree에서 TextBox 내부 ScrollViewer를 찾아 `ScrollChanged` → 좌측 gutter `ScrollToVerticalOffset` 미러링.
 
 ## 최근 변경 (2026-05-02)
 

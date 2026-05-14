@@ -92,8 +92,20 @@ public partial class MainWindow : Window
     /// 캔버스 영역(Focusable=True)으로 키보드 포커스를 옮긴다.</summary>
     public void FocusCanvas() => Keyboard.Focus(CanvasArea);
 
+    // 캔버스 vi 연속 키 (gg, dd, yy)
+    private char? _viPending;
+    private DateTime _viPendingAt;
+
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        // 캔버스 vi 매핑: TextBox 밖, vi ON일 때 우선 처리
+        if (e.OriginalSource is not TextBox
+            && ((App)Application.Current).SettingsService.Settings.ViModeEnabled
+            && !IsInsideListBox(e.OriginalSource))
+        {
+            if (TryHandleCanvasVi(e)) { e.Handled = true; return; }
+        }
+
         if (e.Key == Key.Escape)
         {
             // 편집 중인 TextBox에서의 Esc는 편집 종료가 우선 (TextEditor_PreviewKeyDown이 e.Handled 처리)
@@ -283,6 +295,147 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 return true;
             }
+        }
+        return false;
+    }
+
+    private bool TryHandleCanvasVi(KeyEventArgs e)
+    {
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+        bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+        bool alt = (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
+        if (alt) return false;  // Alt+키는 양보
+
+        // Ctrl+r → redo
+        if (ctrl && key == Key.R) { App.Undo.Redo(); return true; }
+
+        // pending key 만료 (1초)
+        if (_viPending is not null && (DateTime.Now - _viPendingAt).TotalSeconds > 1) _viPending = null;
+
+        // 방향 매핑 (h/j/k/l)
+        string? dir = key switch
+        {
+            Key.H => "Left",
+            Key.J => "Down",
+            Key.K => "Up",
+            Key.L => "Right",
+            _ => null,
+        };
+        if (dir is not null)
+        {
+            if (ctrl)
+            {
+                // Ctrl+hjkl → nudge: 화살표 키로 매핑해 기존 헬퍼 재사용
+                var fake = new KeyEventArgs(e.KeyboardDevice, e.InputSource, e.Timestamp,
+                    dir switch { "Left" => Key.Left, "Right" => Key.Right, "Up" => Key.Up, _ => Key.Down });
+                return TryHandleNoteNudge(fake);
+            }
+            // 그냥 hjkl → 인접 노트 선택 이동 (기존 TryHandleArrowNavigation 흉내)
+            var sel = App.MainVM.SelectedNotes.ToList();
+            if (sel.Count != 1) return true;
+            var next = App.MainVM.FindNeighborNote(sel[0], dir);
+            if (next is not null) App.MainVM.SelectOnly(next);
+            return true;
+        }
+
+        if (ctrl) return false;  // 이하 키는 Ctrl 없을 때만
+
+        // pending 처리 (g, d, y)
+        if (_viPending == 'g')
+        {
+            _viPending = null;
+            if (key == Key.G)
+            {
+                if (App.MainVM.CurrentNotebook?.Notes.Count > 0)
+                    App.MainVM.SelectOnly(App.MainVM.CurrentNotebook.Notes[0]);
+                return true;
+            }
+        }
+        else if (_viPending == 'd')
+        {
+            _viPending = null;
+            if (key == Key.D)
+            {
+                var notes = App.MainVM.SelectedNotes.ToList();
+                var groups = App.MainVM.SelectedGroups.ToList();
+                if (notes.Count > 0 || groups.Count > 0)
+                    DeleteGroupsWithPrompt(groups, notes);
+                return true;
+            }
+        }
+        else if (_viPending == 'y')
+        {
+            _viPending = null;
+            if (key == Key.Y)
+            {
+                App.MainVM.CopySelectedToClipboard();
+                return true;
+            }
+        }
+
+        switch (key)
+        {
+            case Key.I:
+            case Key.A:
+            case Key.Enter:
+                {
+                    var sel = App.MainVM.SelectedNotes.ToList();
+                    if (sel.Count == 1 && sel[0].Type == Models.NoteType.Text)
+                    {
+                        sel[0].IsEditing = true;
+                        return true;
+                    }
+                    return false;
+                }
+            case Key.O:
+                {
+                    var sel = App.MainVM.SelectedNotes.ToList();
+                    if (sel.Count != 1) return true;
+                    var src = sel[0];
+                    double x = src.X;
+                    double y = shift ? Math.Max(0, src.Y - 110) : src.Y + src.Height + 10;
+                    App.MainVM.AddTextNote(string.Empty, x, y);
+                    return true;
+                }
+            case Key.X:
+                {
+                    var notes = App.MainVM.SelectedNotes.ToList();
+                    var groups = App.MainVM.SelectedGroups.ToList();
+                    if (notes.Count > 0 || groups.Count > 0)
+                        DeleteGroupsWithPrompt(groups, notes);
+                    return true;
+                }
+            case Key.D:
+                _viPending = 'd'; _viPendingAt = DateTime.Now;
+                return true;
+            case Key.Y:
+                _viPending = 'y'; _viPendingAt = DateTime.Now;
+                return true;
+            case Key.G:
+                if (shift)
+                {
+                    if (App.MainVM.CurrentNotebook?.Notes.Count > 0)
+                        App.MainVM.SelectOnly(App.MainVM.CurrentNotebook.Notes[^1]);
+                    return true;
+                }
+                _viPending = 'g'; _viPendingAt = DateTime.Now;
+                return true;
+            case Key.P:
+                {
+                    var sel = App.MainVM.SelectedNotes.ToList();
+                    double x, y;
+                    if (sel.Count == 1) { x = sel[0].X + sel[0].Width + 10; y = sel[0].Y; }
+                    else { (x, y) = GetWorldMousePosition(); }
+                    App.MainVM.PasteFromClipboard(x, y);
+                    return true;
+                }
+            case Key.U:
+                App.Undo.Undo();
+                return true;
+            case Key.V:
+                // 캔버스에서 v는 추후 마키 모드 — 현재는 미구현 (시각적 mouse 마키만 존재)
+                return false;
         }
         return false;
     }

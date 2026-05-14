@@ -24,11 +24,17 @@ public partial class HotkeySettingsDialog : Window
             ShowMain = current.ShowMain.Clone(),
             ToggleOverlay = current.ToggleOverlay.Clone(),
             ToggleClickThrough = current.ToggleClickThrough.Clone(),
-            NotebookSwitches = current.NotebookSwitches.Select(b => b.Clone()).ToArray()
+            NotebookSwitches = current.NotebookSwitches.Select(b => b.Clone()).ToArray(),
+            ViModeEnabled = current.ViModeEnabled,
+            ViStartInNormal = current.ViStartInNormal,
+            ShowLineNumbers = current.ShowLineNumbers,
         };
         BuildNotebookEntries();
         NotebookSwitchesList.ItemsSource = NotebookEntries;
         RefreshAllBoxes();
+        ViModeCheck.IsChecked = _working.ViModeEnabled;
+        ViStartInNormalCheck.IsChecked = _working.ViStartInNormal;
+        ShowLineNumbersCheck.IsChecked = _working.ShowLineNumbers;
     }
 
     public AppSettings Result => _working;
@@ -151,6 +157,9 @@ public partial class HotkeySettingsDialog : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
+        _working.ViModeEnabled = ViModeCheck.IsChecked == true;
+        _working.ViStartInNormal = ViStartInNormalCheck.IsChecked == true;
+        _working.ShowLineNumbers = ShowLineNumbersCheck.IsChecked == true;
         DialogResult = true;
         Close();
     }

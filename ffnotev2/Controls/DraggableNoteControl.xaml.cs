@@ -14,6 +14,7 @@ namespace ffnotev2.Controls;
 
 public partial class DraggableNoteControl : UserControl
 {
+    private ViController? _vi;
     private bool _isDragging;
     private Point _dragStart;
     // 일괄 드래그를 위해 선택된 모든 노트의 시작 좌표 캡처
@@ -58,7 +59,7 @@ public partial class DraggableNoteControl : UserControl
         else if (e.PropertyName == nameof(NoteItem.Content))
         {
             // 표시 모드일 때만 갱신 (편집 중엔 매 키스트로크마다 다시 그릴 필요 없음)
-            if (TextEditor.Visibility != Visibility.Visible) RefreshDocument();
+            if (EditorContainer.Visibility != Visibility.Visible) RefreshDocument();
         }
     }
 
@@ -66,6 +67,13 @@ public partial class DraggableNoteControl : UserControl
     {
         ApplyEditorFont();
         RefreshDocument();
+        // 편집 중이면 vi 활성/줄번호 표시도 즉시 갱신
+        if (EditorContainer.Visibility == Visibility.Visible)
+        {
+            EnsureViController();
+            SyncLineNumbersVisibility();
+            UpdateLineNumbers();
+        }
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -89,6 +97,7 @@ public partial class DraggableNoteControl : UserControl
         if (settings is null) return;
         TextEditor.FontFamily = new System.Windows.Media.FontFamily(settings.NoteFontFamily);
         TextEditor.FontSize = settings.NoteFontSize;
+        LineNumberBlock.FontSize = settings.NoteFontSize;
     }
 
     private NoteItem? Item => DataContext as NoteItem;
@@ -258,12 +267,140 @@ public partial class DraggableNoteControl : UserControl
         if (Item is null || Item.Type != NoteType.Text) return;
         // 표시 모드 → 편집 모드로 스왑 (IsReadOnly 토글 회피로 한글 IME 정상 동작)
         TextDisplayScroll.Visibility = Visibility.Collapsed;
-        TextEditor.Visibility = Visibility.Visible;
+        EditorContainer.Visibility = Visibility.Visible;
+        EnsureViController();
+        SyncLineNumbersVisibility();
+        UpdateLineNumbers();
         Dispatcher.BeginInvoke(new Action(() =>
         {
             Keyboard.Focus(TextEditor);
             TextEditor.CaretIndex = TextEditor.Text.Length;
+            HookEditorScroll();
         }), DispatcherPriority.Input);
+    }
+
+    private void EnsureViController()
+    {
+        var settings = CurrentSettings?.Settings;
+        if (settings is null || !settings.ViModeEnabled)
+        {
+            _vi = null;
+            UpdateViBadge();
+            return;
+        }
+        if (_vi is null)
+        {
+            _vi = new ViController(TextEditor);
+            _vi.StateChanged += OnViStateChanged;
+            _vi.QuitRequested += OnViQuitRequested;
+        }
+        _vi.Reset(settings.ViStartInNormal ? ViController.Mode.Normal : ViController.Mode.Insert);
+        UpdateViBadge();
+    }
+
+    private void OnViStateChanged()
+    {
+        UpdateViBadge();
+        if (_vi is null) return;
+        if (_vi.CurrentMode == ViController.Mode.Command)
+        {
+            CommandBar.Visibility = Visibility.Visible;
+            CommandText.Text = ":" + _vi.CommandText;
+        }
+        else
+        {
+            CommandBar.Visibility = Visibility.Collapsed;
+        }
+        TextEditor.CaretBrush = _vi.CurrentMode == ViController.Mode.Normal
+            ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x99, 0x33))
+            : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xEE, 0xEE, 0xEE));
+    }
+
+    private void OnViQuitRequested()
+    {
+        if (Window.GetWindow(this) is MainWindow mw) mw.FocusCanvas();
+    }
+
+    private void UpdateViBadge()
+    {
+        if (_vi is null)
+        {
+            ViModeBadge.Visibility = Visibility.Collapsed;
+            return;
+        }
+        ViModeBadge.Visibility = Visibility.Visible;
+        ViModeBadge.Text = _vi.CurrentMode switch
+        {
+            ViController.Mode.Normal => "NRM",
+            ViController.Mode.Insert => "INS",
+            ViController.Mode.VisualChar => "VIS",
+            ViController.Mode.VisualLine => "V-LN",
+            ViController.Mode.Command => "CMD",
+            _ => string.Empty,
+        };
+    }
+
+    private void SyncLineNumbersVisibility()
+    {
+        var settings = CurrentSettings?.Settings;
+        bool show = settings?.ShowLineNumbers == true;
+        LineNumberColumn.Width = show ? new GridLength(36) : new GridLength(0);
+        LineNumberScroll.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void UpdateLineNumbers()
+    {
+        if (LineNumberColumn.Width.Value <= 0) return;
+        var t = TextEditor.Text ?? string.Empty;
+        int count = 1;
+        for (int i = 0; i < t.Length; i++) if (t[i] == '\n') count++;
+        var sb = new System.Text.StringBuilder(count * 4);
+        for (int i = 1; i <= count; i++)
+        {
+            sb.Append(i);
+            if (i < count) sb.Append('\n');
+        }
+        LineNumberBlock.Text = sb.ToString();
+        // 폰트 크기·family 동기화
+        LineNumberBlock.FontSize = TextEditor.FontSize;
+    }
+
+    private void TextEditor_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        UpdateLineNumbers();
+    }
+
+    private ScrollViewer? _editorScrollViewer;
+    private void HookEditorScroll()
+    {
+        if (_editorScrollViewer is not null) return;
+        var sv = FindDescendant<ScrollViewer>(TextEditor);
+        if (sv is null) return;
+        _editorScrollViewer = sv;
+        sv.ScrollChanged += (_, ev) =>
+        {
+            if (LineNumberScroll.Visibility != Visibility.Visible) return;
+            LineNumberScroll.ScrollToVerticalOffset(ev.VerticalOffset);
+        };
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        int count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is T t) return t;
+            var nested = FindDescendant<T>(child);
+            if (nested is not null) return nested;
+        }
+        return null;
+    }
+
+    private void TextEditor_PreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        if (_vi is null) return;
+        if (_vi.OnTextInput(e)) e.Handled = true;
     }
 
     private void UserControl_Loaded(object sender, RoutedEventArgs e)
@@ -313,7 +450,7 @@ public partial class DraggableNoteControl : UserControl
         // 4px 임계값으로 단순 클릭(선택만)과 클릭+드래그를 구분 → 미선택 상태 클릭+드래그도
         // 이 클릭에서 즉시 선택+드래그로 자연스럽게 이어짐.
         if (e.ClickCount > 1) return;
-        if (Item.Type == NoteType.Text && TextEditor.Visibility == Visibility.Visible) return;
+        if (Item.Type == NoteType.Text && EditorContainer.Visibility == Visibility.Visible) return;
         if (!IsOnBodyArea(e.OriginalSource)) return;
 
         var canvas = FindParentCanvas();
@@ -369,15 +506,36 @@ public partial class DraggableNoteControl : UserControl
 
     private void TextEditor_LostFocus(object sender, RoutedEventArgs e)
     {
-        TextEditor.Visibility = Visibility.Collapsed;
+        EditorContainer.Visibility = Visibility.Collapsed;
         TextDisplayScroll.Visibility = Visibility.Visible;
         if (Item is not null)
             App.MainVM.UpdateNoteContent(Item);
         RefreshDocument();  // 편집 중엔 갱신을 미뤘으므로 표시 복귀 시점에 한 번 갱신
+        if (_vi is not null) _vi.SetMode(ViController.Mode.Insert);  // 다음 편집 진입을 위해 깨끗하게
     }
 
     private void TextEditor_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        // Vi 모드: ViController에 우선 위임. Normal 상태에서 Esc는 편집 종료, Insert에선 Normal 전환.
+        if (_vi is not null)
+        {
+            bool inInsert = _vi.CurrentMode == ViController.Mode.Insert;
+            // Normal 모드의 Esc → 편집 종료 (vi-style :q 의 단축)
+            if (!inInsert && e.Key == Key.Escape && _vi.CurrentMode == ViController.Mode.Normal)
+            {
+                if (Window.GetWindow(this) is MainWindow mw) mw.FocusCanvas();
+                e.Handled = true;
+                return;
+            }
+            if (_vi.OnPreviewKeyDown(e))
+            {
+                e.Handled = true;
+                return;
+            }
+            // Vi Normal 상태에선 표 보조도 비활성
+            if (!inInsert) { e.Handled = true; return; }
+        }
+
         if (e.Key == Key.Escape)
         {
             // ESC로 편집 종료. CanvasArea(Focusable=True)에 포커스를 옮겨 LostFocus 트리거 +
@@ -387,12 +545,34 @@ public partial class DraggableNoteControl : UserControl
             return;
         }
 
-        // Tab / Shift+Tab: 들여쓰기 / 내어쓰기. 기본 동작(포커스 이동)을 가로채야 하므로
-        // AcceptsTab과 무관하게 PreviewKeyDown에서 처리. 단위는 공백 4칸.
+        // Tab / Shift+Tab: 표 안이면 다음/이전 셀로 점프, 그 외엔 들여쓰기 / 내어쓰기.
         if (e.Key == Key.Tab)
         {
-            bool outdent = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
-            HandleIndent(outdent);
+            bool back = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+            if (TryHandleTableTab(back))
+            {
+                e.Handled = true;
+                return;
+            }
+            HandleIndent(back);
+            e.Handled = true;
+            return;
+        }
+
+        // Enter: 표 행 끝에서 누르면 새 행(헤더 다음이면 separator 자동 보강)
+        if (e.Key == Key.Return && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            if (TryHandleTableEnter())
+            {
+                e.Handled = true;
+                return;
+            }
+        }
+
+        // Ctrl+T: 빈 표 삽입 다이얼로그
+        if (e.Key == Key.T && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            InsertTableTemplate();
             e.Handled = true;
             return;
         }
@@ -503,6 +683,238 @@ public partial class DraggableNoteControl : UserControl
             int newEnd = Math.Max(newStart, selEnd + totalDelta);
             TextEditor.Select(newStart, newEnd - newStart);
         }
+    }
+
+    // 표 행 판정: 줄이 '|'로 시작/끝나고 중간에 '|'가 1개 이상
+    private static bool IsTableRowLine(string line) =>
+        line.Length >= 3 && line[0] == '|' && line[^1] == '|' && line.IndexOf('|', 1) < line.Length - 1;
+
+    // separator 줄 판정: '|', '-', ':', 공백만으로 구성된 표 행 (열 정렬 메타)
+    private static bool IsSeparatorLine(string line)
+    {
+        if (!IsTableRowLine(line)) return false;
+        foreach (var ch in line) if (ch != '|' && ch != '-' && ch != ':' && ch != ' ') return false;
+        return line.Contains('-');
+    }
+
+    private static int CountColumns(string line)
+    {
+        if (!IsTableRowLine(line)) return 0;
+        int pipes = 0;
+        foreach (var ch in line) if (ch == '|') pipes++;
+        return pipes - 1;
+    }
+
+    private bool TryHandleTableTab(bool back)
+    {
+        var text = TextEditor.Text ?? string.Empty;
+        var caret = TextEditor.CaretIndex;
+        int ls = LineStart(text, caret);
+        int le = LineEnd(text, caret);
+        var line = text.Substring(ls, le - ls);
+        if (!IsTableRowLine(line)) return false;
+        if (IsSeparatorLine(line))
+        {
+            // separator 줄은 사용자가 직접 편집할 일이 거의 없음 — 인접 행 첫/마지막 셀로 점프
+            return JumpToAdjacentRowCell(text, ls, le, back, firstCellOfNext: !back);
+        }
+
+        if (back)
+        {
+            // 캐럿 좌측의 가장 가까운 '|'를 찾되, 자신이 시작 '|'면 이전 행으로
+            int leftPipe = text.LastIndexOf('|', Math.Max(ls, caret - 1));
+            if (leftPipe <= ls)
+                return JumpToAdjacentRowCell(text, ls, le, back: true, firstCellOfNext: false);
+            // 그 좌측 셀의 시작 = 그 이전 '|' 다음 위치
+            int prevPipe = text.LastIndexOf('|', leftPipe - 1);
+            if (prevPipe < ls) return false;
+            int newCaret = SkipOneSpace(text, prevPipe + 1, leftPipe);
+            TextEditor.CaretIndex = newCaret;
+            return true;
+        }
+        else
+        {
+            // 캐럿 우측의 가장 가까운 '|'를 찾고 그 다음 셀 시작으로
+            int rightPipe = text.IndexOf('|', caret);
+            if (rightPipe < 0 || rightPipe >= le) return false;
+            if (rightPipe == le - 1)
+            {
+                // 줄 끝 '|' — 다음 행 첫 셀로 이동 (없으면 새 행 자동 추가)
+                return JumpToAdjacentRowCell(text, ls, le, back: false, firstCellOfNext: true);
+            }
+            int next = rightPipe + 1;
+            int nextEnd = text.IndexOf('|', next);
+            if (nextEnd < 0 || nextEnd > le) nextEnd = le;
+            int newCaret = SkipOneSpace(text, next, nextEnd);
+            TextEditor.CaretIndex = newCaret;
+            return true;
+        }
+    }
+
+    private static int SkipOneSpace(string text, int from, int hardLimit)
+    {
+        if (from < hardLimit && from < text.Length && text[from] == ' ') return from + 1;
+        return from;
+    }
+
+    private bool JumpToAdjacentRowCell(string text, int curLs, int curLe, bool back, bool firstCellOfNext)
+    {
+        if (back)
+        {
+            if (curLs == 0) return true;  // 첫 줄 — 무동작
+            int prevLe = curLs - 1;
+            int prevLs = LineStart(text, prevLe - 1);
+            var prev = text.Substring(prevLs, prevLe - prevLs);
+            if (IsSeparatorLine(prev))
+            {
+                if (prevLs == 0) return true;
+                int p2Le = prevLs - 1;
+                int p2Ls = LineStart(text, p2Le - 1);
+                prev = text.Substring(p2Ls, p2Le - p2Ls);
+                prevLs = p2Ls; prevLe = p2Le;
+            }
+            if (!IsTableRowLine(prev)) return true;
+            // 이전 행 마지막 셀: 마지막 '|' 직전 셀
+            int lastPipe = prev.LastIndexOf('|');
+            int secondLastPipe = prev.LastIndexOf('|', lastPipe - 1);
+            if (secondLastPipe < 0) return true;
+            int caretLocal = secondLastPipe + 1;
+            if (caretLocal < lastPipe && prev[caretLocal] == ' ') caretLocal++;
+            TextEditor.CaretIndex = prevLs + caretLocal;
+            return true;
+        }
+        else
+        {
+            // 다음 줄 검사 — separator면 건너뜀
+            int nextLs = curLe < text.Length && text[curLe] == '\n' ? curLe + 1 : curLe;
+            if (nextLs >= text.Length)
+            {
+                // 새 행 자동 추가 + 캐럿
+                AppendNewTableRow(text, curLs, curLe);
+                return true;
+            }
+            int nextLe = LineEnd(text, nextLs);
+            var nextLine = text.Substring(nextLs, nextLe - nextLs);
+            if (IsSeparatorLine(nextLine))
+            {
+                // 헤더 다음 separator를 건너뛰고 그 다음 줄 확인
+                int n2Ls = nextLe < text.Length && text[nextLe] == '\n' ? nextLe + 1 : nextLe;
+                if (n2Ls >= text.Length)
+                {
+                    AppendNewTableRow(text, curLs, curLe);
+                    return true;
+                }
+                int n2Le = LineEnd(text, n2Ls);
+                var n2Line = text.Substring(n2Ls, n2Le - n2Ls);
+                if (!IsTableRowLine(n2Line))
+                {
+                    AppendNewTableRow(text, nextLe, nextLe);
+                    return true;
+                }
+                nextLs = n2Ls; nextLe = n2Le; nextLine = n2Line;
+            }
+            else if (!IsTableRowLine(nextLine))
+            {
+                AppendNewTableRow(text, curLs, curLe);
+                return true;
+            }
+            // 다음 행 첫 셀: 첫 '|' 다음 위치
+            int firstPipe = nextLine.IndexOf('|');
+            int caretLocal = firstPipe + 1;
+            int secondPipe = nextLine.IndexOf('|', caretLocal);
+            if (secondPipe < 0) secondPipe = nextLine.Length;
+            if (caretLocal < secondPipe && nextLine[caretLocal] == ' ') caretLocal++;
+            TextEditor.CaretIndex = nextLs + caretLocal;
+            return true;
+        }
+    }
+
+    // 표 행 다음에 새 빈 행을 삽입 + 캐럿을 첫 셀로
+    private void AppendNewTableRow(string text, int referenceLs, int referenceLe)
+    {
+        var refLine = text.Substring(referenceLs, referenceLe - referenceLs);
+        int cols = CountColumns(refLine);
+        if (cols <= 0) return;
+        var sb = new System.Text.StringBuilder("\n|");
+        for (int i = 0; i < cols; i++) sb.Append("   |");
+        var insert = sb.ToString();
+        TextEditor.Text = text.Insert(referenceLe, insert);
+        // 새 행 첫 셀 — referenceLe + "\n|".Length + (space 1)
+        int firstCell = referenceLe + 2 + 1;
+        TextEditor.CaretIndex = firstCell;
+    }
+
+    private bool TryHandleTableEnter()
+    {
+        var text = TextEditor.Text ?? string.Empty;
+        var caret = TextEditor.CaretIndex;
+        int ls = LineStart(text, caret);
+        int le = LineEnd(text, caret);
+        var line = text.Substring(ls, le - ls);
+        if (!IsTableRowLine(line)) return false;
+        if (IsSeparatorLine(line)) return false;
+        // 줄 끝이 아니면 양보 (셀 안 위치라면 사용자가 줄바꿈 의도)
+        if (caret != le) return false;
+
+        int cols = CountColumns(line);
+        if (cols <= 0) return false;
+
+        // 다음 줄이 separator인지, 표 행이 더 이어지는지 확인.
+        // 헤더 줄 다음에 separator가 없으면 자동 보강.
+        int nextLs = le < text.Length && text[le] == '\n' ? le + 1 : le;
+        bool needSeparator = false;
+        if (nextLs >= text.Length)
+        {
+            needSeparator = true;
+        }
+        else
+        {
+            int nextLe = LineEnd(text, nextLs);
+            var nextLine = text.Substring(nextLs, nextLe - nextLs);
+            if (!IsSeparatorLine(nextLine) && !IsTableRowLine(nextLine))
+                needSeparator = true;
+            // nextLine이 표 행(데이터)이면 헤더라고 단정 못 하지만, separator 없는 데이터 행만 이어진 경우는 드뭄 — 그대로 양보
+            else if (IsTableRowLine(nextLine) && !IsSeparatorLine(nextLine))
+                needSeparator = false;
+        }
+
+        var sb = new System.Text.StringBuilder();
+        if (needSeparator)
+        {
+            sb.Append("\n|");
+            for (int i = 0; i < cols; i++) sb.Append("---|");
+        }
+        sb.Append("\n|");
+        for (int i = 0; i < cols; i++) sb.Append("   |");
+        var insert = sb.ToString();
+        TextEditor.Text = text.Insert(le, insert);
+        // 캐럿: 새 데이터 행의 첫 셀 = le + insert.Length - (마지막 행 길이 - "|   ".Length까지)
+        // 단순 계산: insert 안에서 마지막 "\n|"가 새 행 시작
+        int lastNewLine = insert.LastIndexOf('\n');
+        int caretAt = le + lastNewLine + 2;  // '\n|' 다음
+        if (caretAt < TextEditor.Text.Length && TextEditor.Text[caretAt] == ' ') caretAt++;
+        TextEditor.CaretIndex = caretAt;
+        return true;
+    }
+
+    private void InsertTableTemplate()
+    {
+        var dlg = new Dialogs.InsertTableDialog { Owner = Window.GetWindow(this) };
+        if (dlg.ShowDialog() != true) return;
+        var md = dlg.BuildMarkdown();
+
+        var text = TextEditor.Text ?? string.Empty;
+        var caret = TextEditor.CaretIndex;
+        // 캐럿이 줄 중간이면 위/아래에 줄바꿈 prefix/suffix 추가
+        var prefix = (caret > 0 && text[caret - 1] != '\n') ? "\n" : "";
+        var suffix = (caret < text.Length && text[caret] != '\n') ? "\n" : "";
+        var combined = prefix + md + suffix;
+
+        TextEditor.Text = text.Insert(caret, combined);
+        // 캐럿을 헤더 첫 셀로
+        int firstCell = caret + prefix.Length + 1; // '|' 다음
+        if (firstCell < TextEditor.Text.Length && TextEditor.Text[firstCell] == ' ') firstCell++;
+        TextEditor.CaretIndex = firstCell;
     }
 
     private static int LineStart(string text, int pos)

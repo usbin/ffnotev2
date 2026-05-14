@@ -240,6 +240,9 @@ public partial class App : Application
             SettingsService.Settings.ToggleOverlay = dlg.Result.ToggleOverlay;
             SettingsService.Settings.ToggleClickThrough = dlg.Result.ToggleClickThrough;
             SettingsService.Settings.NotebookSwitches = dlg.Result.NotebookSwitches;
+            SettingsService.Settings.ViModeEnabled = dlg.Result.ViModeEnabled;
+            SettingsService.Settings.ViStartInNormal = dlg.Result.ViStartInNormal;
+            SettingsService.Settings.ShowLineNumbers = dlg.Result.ShowLineNumbers;
             SettingsService.Save();
 
             if (!_mainWindow.ReregisterHotkeys())

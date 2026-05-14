@@ -7,9 +7,16 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using Markdig;
+using Markdig.Extensions.Tables;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using EmojiWpf = Emoji.Wpf;
+using WpfTable = System.Windows.Documents.Table;
+using WpfTableCell = System.Windows.Documents.TableCell;
+using WpfTableRow = System.Windows.Documents.TableRow;
+using MdTable = Markdig.Extensions.Tables.Table;
+using MdTableRow = Markdig.Extensions.Tables.TableRow;
+using MdTableCell = Markdig.Extensions.Tables.TableCell;
 using Color = System.Windows.Media.Color;
 using Brushes = System.Windows.Media.Brushes;
 using FontFamily = System.Windows.Media.FontFamily;
@@ -27,6 +34,7 @@ public static class MarkdownRenderer
 {
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAutoLinks()
+        .UsePipeTables()
         .Build();
 
     public static FlowDocument Render(string markdown, string fontFamily, double fontSize, string imageBaseDir)
@@ -67,6 +75,8 @@ public static class MarkdownRenderer
                 return BuildParagraph(p.Inline, baseFontSize, imageBaseDir);
             case QuoteBlock q:
                 return BuildQuote(q, baseFontSize, imageBaseDir);
+            case MdTable t:
+                return BuildTable(t, baseFontSize, imageBaseDir);
             case ThematicBreakBlock:
                 return new Paragraph(new Run(new string('─', 40)))
                 {
@@ -229,6 +239,85 @@ public static class MarkdownRenderer
             if (converted is not null) s.Blocks.Add(converted);
         }
         return s;
+    }
+
+    private static System.Windows.Documents.Block BuildTable(MdTable mdTable, double baseFontSize, string imageBaseDir)
+    {
+        var table = new WpfTable
+        {
+            CellSpacing = 0,
+            Margin = new Thickness(0, 4, 0, 4),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
+            BorderThickness = new Thickness(0, 1, 0, 1),
+        };
+
+        int colCount = mdTable.ColumnDefinitions?.Count ?? 0;
+        if (colCount == 0)
+        {
+            foreach (var blk in mdTable)
+                if (blk is MdTableRow row && row.Count > colCount) colCount = row.Count;
+        }
+        for (int i = 0; i < colCount; i++) table.Columns.Add(new TableColumn());
+
+        var headerGroup = new TableRowGroup();
+        var bodyGroup = new TableRowGroup();
+        table.RowGroups.Add(headerGroup);
+        table.RowGroups.Add(bodyGroup);
+
+        var headerBg = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+        var cellBorder = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+
+        foreach (var blk in mdTable)
+        {
+            if (blk is not MdTableRow row) continue;
+            var wpfRow = new WpfTableRow();
+            bool isHeader = row.IsHeader;
+            int colIdx = 0;
+            foreach (var c in row)
+            {
+                if (c is not MdTableCell mdCell) continue;
+                var wpfCell = new WpfTableCell
+                {
+                    Padding = new Thickness(6, 2, 6, 2),
+                    BorderBrush = cellBorder,
+                    BorderThickness = new Thickness(0, 0, 0, isHeader ? 0 : 1),
+                };
+                if (isHeader)
+                {
+                    wpfCell.Background = headerBg;
+                    wpfCell.FontWeight = FontWeights.Bold;
+                }
+
+                TextAlignment? align = null;
+                if (mdTable.ColumnDefinitions is { } defs && colIdx < defs.Count)
+                {
+                    align = defs[colIdx].Alignment switch
+                    {
+                        TableColumnAlign.Left => TextAlignment.Left,
+                        TableColumnAlign.Center => TextAlignment.Center,
+                        TableColumnAlign.Right => TextAlignment.Right,
+                        _ => null,
+                    };
+                }
+
+                foreach (var sub in mdCell)
+                {
+                    var converted = ConvertBlock(sub, baseFontSize, imageBaseDir);
+                    if (converted is null) continue;
+                    if (align is { } a && converted is Paragraph cp) cp.TextAlignment = a;
+                    if (converted is Paragraph p) p.Margin = new Thickness(0);
+                    wpfCell.Blocks.Add(converted);
+                }
+                if (wpfCell.Blocks.Count == 0)
+                    wpfCell.Blocks.Add(new Paragraph { Margin = new Thickness(0) });
+
+                wpfRow.Cells.Add(wpfCell);
+                colIdx++;
+            }
+            (isHeader ? headerGroup : bodyGroup).Rows.Add(wpfRow);
+        }
+
+        return table;
     }
 
     private static void AppendInlines(InlineCollection target, ContainerInline? source, double baseFontSize, string imageBaseDir)
