@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Navigation;
 using System.Windows.Threading;
@@ -14,6 +15,7 @@ namespace ffnotev2.Controls;
 
 public partial class DraggableNoteControl : UserControl
 {
+    private TableGridAdorner? _tableAdorner;
     private bool _isDragging;
     private Point _dragStart;
     // 일괄 드래그를 위해 선택된 모든 노트의 시작 좌표 캡처
@@ -288,7 +290,25 @@ public partial class DraggableNoteControl : UserControl
             TextEditor.CaretIndex = TextEditor.Text.Length;
             HookEditorScroll();
             UpdateLineNumbers();  // TextBox measure 끝난 후 LineCount 정확
+            AttachTableAdorner();
         }), DispatcherPriority.Loaded);
+    }
+
+    private void AttachTableAdorner()
+    {
+        if (_tableAdorner is not null) return;
+        var layer = AdornerLayer.GetAdornerLayer(TextEditor);
+        if (layer is null) return;
+        _tableAdorner = new TableGridAdorner(TextEditor);
+        layer.Add(_tableAdorner);
+    }
+
+    private void DetachTableAdorner()
+    {
+        if (_tableAdorner is null) return;
+        var layer = AdornerLayer.GetAdornerLayer(TextEditor);
+        layer?.Remove(_tableAdorner);
+        _tableAdorner = null;
     }
 
     private void SyncLineNumbersVisibility()
@@ -357,12 +377,20 @@ public partial class DraggableNoteControl : UserControl
 
     private void TextEditor_TextChanged(object sender, TextChangedEventArgs e)
     {
-        Dispatcher.BeginInvoke(new Action(UpdateLineNumbers), DispatcherPriority.Loaded);
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            UpdateLineNumbers();
+            _tableAdorner?.InvalidateVisual();
+        }), DispatcherPriority.Loaded);
     }
 
     private void TextEditor_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        Dispatcher.BeginInvoke(new Action(UpdateLineNumbers), DispatcherPriority.Loaded);
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            UpdateLineNumbers();
+            _tableAdorner?.InvalidateVisual();
+        }), DispatcherPriority.Loaded);
     }
 
     private ScrollViewer? _editorScrollViewer;
@@ -372,8 +400,12 @@ public partial class DraggableNoteControl : UserControl
         var sv = FindDescendant<ScrollViewer>(TextEditor);
         if (sv is null) return;
         _editorScrollViewer = sv;
-        // 스크롤 시 줄 번호 위치도 다시 그림 (GetRectFromCharacterIndex는 스크롤된 visual 좌표 반환)
-        sv.ScrollChanged += (_, _) => UpdateLineNumbers();
+        // 스크롤 시 줄 번호·표 그리드 위치도 다시 그림 (GetRectFromCharacterIndex는 스크롤된 visual 좌표 반환)
+        sv.ScrollChanged += (_, _) =>
+        {
+            UpdateLineNumbers();
+            _tableAdorner?.InvalidateVisual();
+        };
     }
 
     private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
@@ -494,6 +526,7 @@ public partial class DraggableNoteControl : UserControl
 
     private void TextEditor_LostFocus(object sender, RoutedEventArgs e)
     {
+        DetachTableAdorner();
         EditorContainer.Visibility = Visibility.Collapsed;
         TextDisplayScroll.Visibility = Visibility.Visible;
         if (Item is not null)

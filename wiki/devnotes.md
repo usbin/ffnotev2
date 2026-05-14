@@ -1,6 +1,10 @@
 <!-- 최종 수정: 2026-05-14 -->
 # 개발 노트
 
+## 최근 변경 (2026-05-14, 편집 표 셀 그리드 오버레이)
+
+- **편집 모드 표 셀 그리드**: `Controls/TableGridAdorner` 신규 — TextBox 위에 `AdornerLayer`로 표 셀 외곽선만 오버레이. `IsHitTestVisible=false`로 입력·캐럿·IME에 전혀 영향 없음. raw 마크다운 텍스트 그대로 보존. 표 행은 양 끝이 `|`이고 가운데에 `|`가 1개 이상인 줄로 판정. 첫 표 행의 각 `|` X 좌표(`GetRectFromCharacterIndex`)에서 표 시작 Y → 표 끝 Y까지 세로선, 각 행 상단에 가로선 + 표 하단. `DraggableNoteControl`이 BeginEdit 시 `AdornerLayer.GetAdornerLayer(TextEditor).Add(_tableAdorner)`, LostFocus 시 Remove. TextChanged/SizeChanged/ScrollChanged 모두 `_tableAdorner?.InvalidateVisual()` 트리거.
+
 ## 최근 변경 (2026-05-14, 설정 통합 + 편집 표 가독성)
 
 - **설정 다이얼로그 통합**: `Dialogs/SettingsDialog` 신규 — 기존 `HotkeySettingsDialog` + `FontSettingsDialog` + 트레이 "자동 실행" 토글을 한 곳으로 합침. 진입점은 사이드바 "설정" 버튼 + 트레이 "설정..." 두 곳. 기존 두 다이얼로그·App의 `_autoStartMenuItem`/`OnAutoStartToggleClicked` 제거. `App.ShowHotkeySettings` → `ShowSettings`로 이름 변경.

@@ -54,6 +54,12 @@
 | Converters/PathToImageConverter | 파일 경로 → `BitmapImage` (`BitmapCacheOption.OnLoad`로 파일 잠금 해제) |
 | Converters/InverseBooleanToVisibilityConverter | bool → `Visibility` 반전 (`HasCurrentNotebook` 빈 화면 안내용) |
 
+## 어도너
+
+| 파일 | 설명 |
+|------|------|
+| Controls/TableGridAdorner | 편집 모드 TextBox 위에 마크다운 표 셀 그리드(세로선·가로선) 오버레이. `IsHitTestVisible=false`라 입력에 무관. 각 표 행의 `\|` 위치를 `TextBox.GetRectFromCharacterIndex`로 얻어 세로선 + 각 행 상단·표 하단에 가로선. `DraggableNoteControl`이 BeginEdit 시 부착, LostFocus 시 해제, TextChanged/SizeChanged/ScrollChanged 시 `InvalidateVisual` |
+
 ## 단축키
 
 ### 사용자 변경 가능 (트레이 → 단축키 설정)
