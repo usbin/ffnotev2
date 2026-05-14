@@ -387,9 +387,9 @@ public partial class DraggableNoteControl : UserControl
         // Tab/Enter/편집 종료 시점에만 명시적 트리거.
     }
 
-    // 표 자동 정렬: 매 키 트리거는 한글 IME 합성과 충돌 → Tab/Enter/LostFocus 시점에만 명시적 호출.
-
-    private void AlignTableAtCaret()
+    // 표 편집: 캐럿이 표 안이면 다이얼로그(WPF DataGrid 기반)로 열어 편집 후 raw 마크다운 치환.
+    // 자동 정렬은 불필요 — 다이얼로그의 DataGrid가 셀 정렬·행/열 추가/삭제를 모두 담당.
+    private void EditTableAtCaret()
     {
         if (EditorContainer.Visibility != Visibility.Visible) return;
         var t = TextEditor.Text ?? string.Empty;
@@ -421,184 +421,17 @@ public partial class DraggableNoteControl : UserControl
         }
 
         var tableText = t.Substring(tableStart, tableEnd - tableStart);
-        var lines = tableText.Split('\n');
+        var dlg = new Dialogs.TableEditorDialog(tableText) { Owner = Window.GetWindow(this) };
+        if (dlg.ShowDialog() != true) return;
 
-        // 캐럿 위치 식별 (보존용 — 모든 셀은 정렬 대상)
-        var caretLoc = LocateCaretInTable(tableText, caret - tableStart);
-
-        // 각 행을 cell list로 split (trim) + separator 판정
-        var rows = new List<string[]>();
-        var isSep = new List<bool>();
-        int colCount = 0;
-        foreach (var ln in lines)
-        {
-            var trimmed = ln.TrimEnd('\r');
-            var cells = SplitTableCells(trimmed);
-            if (cells.Length > colCount) colCount = cells.Length;
-            rows.Add(cells);
-            isSep.Add(IsSeparatorOnly(trimmed));
-        }
-        if (colCount == 0) return;
-
-        // 컬럼별 max content px width (separator 제외) — 한글이 영문 2배가 정확하지 않은
-        // monospace 폰트(Consolas + 맑은 고딕 fallback 등)도 정확하게 정렬
-        var tf = new Typeface(TextEditor.FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
-        double fontSize = TextEditor.FontSize;
-        double spaceW = MeasurePx(" ", tf, fontSize);
-        double dashW = MeasurePx("-", tf, fontSize);
-        if (spaceW <= 0) spaceW = fontSize * 0.5;
-        if (dashW <= 0) dashW = spaceW;
-
-        var maxPx = new double[colCount];
-        var contentPx = new double[rows.Count, colCount];
-        for (int ri = 0; ri < rows.Count; ri++)
-        {
-            if (isSep[ri]) continue;
-            for (int ci = 0; ci < rows[ri].Length && ci < colCount; ci++)
-            {
-                // contentPx = 셀 폭 (좌우 공백 1자씩 포함)
-                double w = MeasurePx(rows[ri][ci], tf, fontSize) + 2 * spaceW;
-                contentPx[ri, ci] = w;
-                if (w > maxPx[ci]) maxPx[ci] = w;
-            }
-        }
-
-        // 컬럼별 padding 공백 개수 (각 셀) + separator dash 개수 (컬럼당)
-        // 셀 폭(`|` 사이): 좌측 공백 1 + content + padCount 공백 + 우측 공백 1
-        //   목표 px = spaceW + maxPx[ci] + spaceW = maxPx[ci] + 2*spaceW
-        //   현재 content px = contentPx[ri,ci]
-        //   padCount = round((maxPx[ci] - contentPx[ri,ci]) / spaceW)
-        // separator dashCount = round((maxPx[ci] + 2*spaceW) / dashW) — 셀 폭에 맞춤
-        // dashCount: separator 셀의 `-` 개수가 다른 셀 폭(maxPx[ci])과 같은 px가 되도록
-        var dashCount = new int[colCount];
-        for (int ci = 0; ci < colCount; ci++)
-        {
-            int dc = (int)Math.Round(maxPx[ci] / dashW);
-            if (dc < 3) dc = 3;
-            dashCount[ci] = dc;
-        }
-
-        // 재조립 — 각 행은 자기 셀 수만큼만 출력 (빈 셀 자동 추가 X).
-        // 사용자가 한 행에서 컬럼을 지우면 그 행만 짧아지고 정렬이 강제 복구하지 않음.
-        var sb = new System.Text.StringBuilder();
-        for (int ri = 0; ri < rows.Count; ri++)
-        {
-            sb.Append('|');
-            int cellsInRow = rows[ri].Length;
-            for (int ci = 0; ci < cellsInRow; ci++)
-            {
-                if (isSep[ri])
-                {
-                    sb.Append(new string('-', dashCount[ci]));
-                }
-                else
-                {
-                    var cell = rows[ri][ci];
-                    int pad = (int)Math.Round((maxPx[ci] - contentPx[ri, ci]) / spaceW);
-                    if (pad < 0) pad = 0;
-                    sb.Append(' ').Append(cell).Append(new string(' ', pad)).Append(' ');
-                }
-                sb.Append('|');
-            }
-            if (ri < rows.Count - 1) sb.Append('\n');
-        }
-        var newTableText = sb.ToString();
-        if (newTableText == tableText) return;
-
-        // 캐럿 보존: content offset 기반 (좌측 공백 동적 측정 후 제외)
-        int newCaret = caret;
-        if (caret >= tableStart && caret <= tableEnd)
-        {
-            newCaret = tableStart + LocateCharInTable(newTableText, caretLoc.Row, caretLoc.Cell, caretLoc.ContentOffset);
-        }
-        else if (caret > tableEnd)
-        {
-            newCaret = caret + (newTableText.Length - tableText.Length);
-        }
+        var newMd = dlg.ResultMarkdown ?? string.Empty;
+        // 마지막 개행 trim — 표 다음 콘텐츠와 자연스럽게 이어지도록
+        if (newMd.EndsWith('\n')) newMd = newMd.Substring(0, newMd.Length - 1);
 
         var before = t.Substring(0, tableStart);
         var after = t.Substring(tableEnd);
-        TextEditor.Text = before + newTableText + after;
-        TextEditor.CaretIndex = Math.Clamp(newCaret, 0, TextEditor.Text.Length);
-    }
-
-    private static double MeasurePx(string s, Typeface tf, double size)
-    {
-        if (string.IsNullOrEmpty(s)) return 0;
-        var ft = new FormattedText(s,
-            System.Globalization.CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight, tf, size,
-            System.Windows.Media.Brushes.Black, 1.0);
-        return ft.Width;
-    }
-
-    // tableText 안에서 char offset → (row, cell, content offset)
-    // ContentOffset: trimmed content 안에서의 offset (좌우 공백 제외)
-    private static (int Row, int Cell, int ContentOffset) LocateCaretInTable(string tableText, int offsetInTable)
-    {
-        int row = 0, cell = -1, lastPipe = -1;
-        for (int i = 0; i < offsetInTable && i < tableText.Length; i++)
-        {
-            char ch = tableText[i];
-            if (ch == '\n') { row++; cell = -1; lastPipe = -1; }
-            else if (ch == '|') { cell++; lastPipe = i; }
-        }
-        if (cell < 0 || lastPipe < 0) return (row, 0, 0);
-
-        int cellStart = lastPipe + 1;
-        int nextPipe = tableText.IndexOf('|', offsetInTable);
-        int nextNl = tableText.IndexOf('\n', offsetInTable);
-        int cellEnd;
-        if (nextPipe < 0) cellEnd = nextNl < 0 ? tableText.Length : nextNl;
-        else if (nextNl >= 0 && nextNl < nextPipe) cellEnd = nextNl;
-        else cellEnd = nextPipe;
-
-        int leftSp = 0;
-        while (cellStart + leftSp < cellEnd && tableText[cellStart + leftSp] == ' ') leftSp++;
-        int rightSp = 0;
-        while (cellEnd - 1 - rightSp >= cellStart && tableText[cellEnd - 1 - rightSp] == ' ') rightSp++;
-        int contentLen = Math.Max(0, cellEnd - cellStart - leftSp - rightSp);
-        int raw = Math.Max(0, offsetInTable - cellStart);
-        int trimmed = Math.Max(0, Math.Min(contentLen, raw - leftSp));
-        return (row, cell, trimmed);
-    }
-
-    // newTableText에서 (row, cell, content offset) → char index. 좌측 공백 1자 스킵 후 content 안 offset 위치.
-    private static int LocateCharInTable(string newTableText, int targetRow, int targetCell, int targetContentOffset)
-    {
-        int row = 0, cell = -1;
-        for (int i = 0; i < newTableText.Length; i++)
-        {
-            char ch = newTableText[i];
-            if (ch == '\n') { row++; cell = -1; }
-            else if (ch == '|')
-            {
-                cell++;
-                if (row == targetRow && cell == targetCell)
-                {
-                    int cellStart = i + 1;
-                    int nextPipe = newTableText.IndexOf('|', cellStart);
-                    int nextNl = newTableText.IndexOf('\n', cellStart);
-                    int cellEnd;
-                    if (nextPipe < 0) cellEnd = nextNl < 0 ? newTableText.Length : nextNl;
-                    else if (nextNl >= 0 && nextNl < nextPipe) cellEnd = nextNl;
-                    else cellEnd = nextPipe;
-                    int leftSp = 0;
-                    while (cellStart + leftSp < cellEnd && newTableText[cellStart + leftSp] == ' ') leftSp++;
-                    return Math.Min(cellStart + leftSp + targetContentOffset, cellEnd);
-                }
-            }
-        }
-        return newTableText.Length;
-    }
-
-    private static string[] SplitTableCells(string row)
-    {
-        if (row.Length < 2 || row[0] != '|' || row[^1] != '|') return new[] { row.Trim() };
-        var inner = row.Substring(1, row.Length - 2);
-        var parts = inner.Split('|');
-        for (int i = 0; i < parts.Length; i++) parts[i] = parts[i].Trim();
-        return parts;
+        TextEditor.Text = before + newMd + after;
+        TextEditor.CaretIndex = Math.Min(tableStart + newMd.Length, TextEditor.Text.Length);
     }
 
     private static bool IsTableRowLine(string text, int start, int endExclusive)
@@ -611,34 +444,6 @@ public partial class DraggableNoteControl : UserControl
         for (int i = start + 1; i < e - 1; i++)
             if (text[i] == '|') return true;
         return false;
-    }
-
-    private static bool IsSeparatorOnly(string line)
-    {
-        if (line.Length < 3 || line[0] != '|' || line[^1] != '|') return false;
-        foreach (var ch in line) if (ch != '|' && ch != '-' && ch != ':' && ch != ' ') return false;
-        return line.Contains('-');
-    }
-
-    // 한글/CJK 글자는 monospace에서도 영문의 약 2배 폭 — display width 2로 카운트
-    private static int DisplayWidth(string s)
-    {
-        int w = 0;
-        foreach (var ch in s) w += IsWideChar(ch) ? 2 : 1;
-        return w;
-    }
-
-    private static bool IsWideChar(char ch)
-    {
-        int c = ch;
-        return (c >= 0xAC00 && c <= 0xD7A3)   // 한글 음절
-            || (c >= 0x1100 && c <= 0x11FF)   // 한글 자모
-            || (c >= 0x3130 && c <= 0x318F)   // 한글 호환 자모
-            || (c >= 0x4E00 && c <= 0x9FFF)   // CJK 통합
-            || (c >= 0x3000 && c <= 0x303F)   // CJK 기호
-            || (c >= 0xFF00 && c <= 0xFFEF)   // 전각
-            || (c >= 0x30A0 && c <= 0x30FF)   // 가타카나
-            || (c >= 0x3040 && c <= 0x309F);  // 히라가나
     }
 
     private void TextEditor_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -783,13 +588,167 @@ public partial class DraggableNoteControl : UserControl
 
     private void TextEditor_LostFocus(object sender, RoutedEventArgs e)
     {
-        AlignTableAtCaret();  // 편집 종료 시 마지막 표 정렬
         DetachTableAdorner();
+        // 편집 종료(노트 저장) 시점에만 모든 마크다운 표를 일괄 정렬
+        AlignAllTablesInText();
         EditorContainer.Visibility = Visibility.Collapsed;
         TextDisplayScroll.Visibility = Visibility.Visible;
         if (Item is not null)
             App.MainVM.UpdateNoteContent(Item);
         RefreshDocument();  // 편집 중엔 갱신을 미뤘으므로 표시 복귀 시점에 한 번 갱신
+    }
+
+    /// <summary>노트 텍스트 안의 모든 마크다운 표를 컬럼별 max 폭 기준으로 정렬.
+    /// LostFocus 시점에만 호출 — 편집 중에는 raw 그대로 두어 IME/캐럿 흔들림 없음.</summary>
+    private void AlignAllTablesInText()
+    {
+        var t = TextEditor.Text ?? string.Empty;
+        if (t.Length == 0) return;
+
+        var lines = t.Split('\n');
+        var tf = new Typeface(TextEditor.FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        double fontSize = TextEditor.FontSize;
+        double spaceW = MeasurePx(" ", tf, fontSize);
+        double dashW = MeasurePx("-", tf, fontSize);
+        if (spaceW <= 0) spaceW = fontSize * 0.5;
+        if (dashW <= 0) dashW = spaceW;
+
+        var sb = new System.Text.StringBuilder();
+        bool changed = false;
+        int i = 0;
+        while (i < lines.Length)
+        {
+            var cur = lines[i].TrimEnd('\r');
+            if (IsTableRowLineStr(cur))
+            {
+                int start = i;
+                while (i < lines.Length && IsTableRowLineStr(lines[i].TrimEnd('\r'))) i++;
+                int endExcl = i;
+
+                var tableLines = new string[endExcl - start];
+                for (int k = 0; k < tableLines.Length; k++) tableLines[k] = lines[start + k].TrimEnd('\r');
+                var aligned = AlignTable(tableLines, tf, fontSize, spaceW, dashW);
+
+                for (int k = 0; k < aligned.Length; k++)
+                {
+                    sb.Append(aligned[k]);
+                    if (start + k < lines.Length - 1) sb.Append('\n');
+                }
+                if (!changed)
+                {
+                    for (int k = 0; k < aligned.Length; k++)
+                        if (aligned[k] != tableLines[k]) { changed = true; break; }
+                }
+            }
+            else
+            {
+                sb.Append(lines[i]);
+                if (i < lines.Length - 1) sb.Append('\n');
+                i++;
+            }
+        }
+
+        if (changed)
+        {
+            var newText = sb.ToString();
+            if (newText != t) TextEditor.Text = newText;
+        }
+    }
+
+    private static string[] AlignTable(string[] tableLines, Typeface tf, double fontSize, double spaceW, double dashW)
+    {
+        // 행 cell 분해 + separator 판정
+        var rows = new List<string[]>();
+        var isSep = new List<bool>();
+        int colCount = 0;
+        foreach (var ln in tableLines)
+        {
+            var cells = SplitCells(ln);
+            if (cells.Length > colCount) colCount = cells.Length;
+            rows.Add(cells);
+            isSep.Add(IsSeparatorOnly(ln));
+        }
+        if (colCount == 0) return tableLines;
+
+        // 컬럼별 max content px (좌우 공백 1자씩 포함)
+        var maxPx = new double[colCount];
+        var contentPx = new double[rows.Count, colCount];
+        for (int ri = 0; ri < rows.Count; ri++)
+        {
+            if (isSep[ri]) continue;
+            for (int ci = 0; ci < rows[ri].Length && ci < colCount; ci++)
+            {
+                double w = MeasurePx(rows[ri][ci], tf, fontSize) + 2 * spaceW;
+                contentPx[ri, ci] = w;
+                if (w > maxPx[ci]) maxPx[ci] = w;
+            }
+        }
+
+        var dashCount = new int[colCount];
+        for (int ci = 0; ci < colCount; ci++)
+        {
+            int dc = (int)Math.Round(maxPx[ci] / dashW);
+            if (dc < 3) dc = 3;
+            dashCount[ci] = dc;
+        }
+
+        var result = new string[rows.Count];
+        for (int ri = 0; ri < rows.Count; ri++)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append('|');
+            int cellsInRow = rows[ri].Length;
+            for (int ci = 0; ci < cellsInRow; ci++)
+            {
+                if (isSep[ri])
+                {
+                    sb.Append(new string('-', dashCount[ci]));
+                }
+                else
+                {
+                    var cell = rows[ri][ci];
+                    int pad = (int)Math.Round((maxPx[ci] - contentPx[ri, ci]) / spaceW);
+                    if (pad < 0) pad = 0;
+                    sb.Append(' ').Append(cell).Append(new string(' ', pad)).Append(' ');
+                }
+                sb.Append('|');
+            }
+            result[ri] = sb.ToString();
+        }
+        return result;
+    }
+
+    private static double MeasurePx(string s, Typeface tf, double size)
+    {
+        if (string.IsNullOrEmpty(s)) return 0;
+        var ft = new FormattedText(s,
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight, tf, size,
+            System.Windows.Media.Brushes.Black, 1.0);
+        return ft.Width;
+    }
+
+    private static string[] SplitCells(string row)
+    {
+        if (row.Length < 2 || row[0] != '|' || row[^1] != '|') return new[] { row.Trim() };
+        var inner = row.Substring(1, row.Length - 2);
+        var parts = inner.Split('|');
+        for (int i = 0; i < parts.Length; i++) parts[i] = parts[i].Trim();
+        return parts;
+    }
+
+    private static bool IsTableRowLineStr(string line)
+    {
+        if (line.Length < 3 || line[0] != '|' || line[^1] != '|') return false;
+        for (int i = 1; i < line.Length - 1; i++) if (line[i] == '|') return true;
+        return false;
+    }
+
+    private static bool IsSeparatorOnly(string line)
+    {
+        if (!IsTableRowLineStr(line)) return false;
+        foreach (var ch in line) if (ch != '|' && ch != '-' && ch != ':' && ch != ' ') return false;
+        return line.Contains('-');
     }
 
     private void TextEditor_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -808,7 +767,6 @@ public partial class DraggableNoteControl : UserControl
         {
             bool back = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
             // 셀 점프 전에 표를 한 번 정렬 — 다음 셀 위치 계산이 정확해짐
-            AlignTableAtCaret();
             if (TryHandleTableTab(back))
             {
                 e.Handled = true;
@@ -822,7 +780,6 @@ public partial class DraggableNoteControl : UserControl
         // Enter: 표 행 끝에서 누르면 새 행(헤더 다음이면 separator 자동 보강)
         if (e.Key == Key.Return && Keyboard.Modifiers == ModifierKeys.None)
         {
-            AlignTableAtCaret();  // 새 행 추가 전 현재 표 정렬
             if (TryHandleTableEnter())
             {
                 e.Handled = true;
@@ -834,6 +791,14 @@ public partial class DraggableNoteControl : UserControl
         if (e.Key == Key.T && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         {
             InsertTableTemplate();
+            e.Handled = true;
+            return;
+        }
+
+        // Ctrl+E: 캐럿이 표 안이면 표 편집 다이얼로그(DataGrid) 열기
+        if (e.Key == Key.E && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            EditTableAtCaret();
             e.Handled = true;
             return;
         }

@@ -1,6 +1,12 @@
 <!-- 최종 수정: 2026-05-14 -->
 # 개발 노트
 
+## 최근 변경 (2026-05-14, 표 편집 DataGrid 다이얼로그 + 저장 시 정렬)
+
+- **`Dialogs/TableEditorDialog` 신규 (WPF DataGrid + DataTable)**: 표 편집을 raw 텍스트 가공 대신 WPF 순정 `DataGrid`에 위임. 마크다운 ↔ `DataTable` 양방향 변환 + 행/열 추가·삭제 버튼 + 컬럼 헤더 더블클릭 이름 변경. `DraggableNoteControl.EditTableAtCaret`이 캐럿 표 영역을 식별해 다이얼로그 호출 + 결과로 raw 마크다운 치환. **`Ctrl+E`** 단축키로 진입.
+- **자동 정렬은 LostFocus(편집 종료) 시점만**: 매 키·Tab·Enter 정렬 모두 제거. 사용자 입력 중에는 raw 그대로 — IME/캐럿/컬럼 삭제 복구 문제 모두 해결. 편집 종료 시 `AlignAllTablesInText`가 노트 안의 모든 마크다운 표를 한 번에 정렬. 알고리즘은 px 측정(`FormattedText.Width`) 기반으로 컬럼별 max 폭 + 좌우 공백 1자 패딩 + separator는 같은 px 폭의 `---`.
+- 자동 정렬 관련 헬퍼 대거 정리: `LocateCaretInTable`/`LocateCharInTable`/`DisplayWidth`/`IsWideChar` 제거 (캐럿 보존이 불필요해짐). `SplitTableCells`/`IsTableRowLineStr`/`IsSeparatorOnly`/`MeasurePx`는 정렬 함수에서 재사용.
+
 ## 최근 변경 (2026-05-14, 자동 정렬 트리거 단순화)
 
 - **매 키 자동 정렬 → Tab/Enter/LostFocus 시점만**: TextChanged 디바운스(`DispatcherTimer`) 트리거 자체 제거. 한글 IME 합성 도중 Text 통째 set이 자모 상태를 깨뜨려 후속 space 입력이 누락되는 버그 해결. 사용자 입력 중에 표가 자꾸 흔들리지 않음. Tab 누를 때 / Enter로 새 행 만들 때 / 편집 종료(`TextEditor_LostFocus`) 시점에만 `AlignTableAtCaret()` 호출.

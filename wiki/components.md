@@ -45,6 +45,7 @@
 | Dialogs/GroupDeleteDialog | 그룹 삭제 시 멤버 노트 처리 선택 — `Choice` ∈ `Cancel/DeleteAll/GroupOnly`. `MainWindow.DeleteGroupsWithPrompt`가 멤버 0건이면 미호출, 멤버 있으면 호출 |
 | Dialogs/SettingsDialog | 통합 설정 다이얼로그. **편집기**(폰트 family/size + 미리보기 + 줄 번호 토글 + 편집 시 고정폭 폰트 토글), **시작 옵션**(자동 시작), **글로벌 단축키 3개**, **노트북 전환 10개**, 기본 단축키 참고 섹션. 사이드바 "설정" 버튼 + 트레이 "설정..." 메뉴에서 진입 |
 | Dialogs/InsertTableDialog | 텍스트 노트 편집 중 Ctrl+T로 호출. 행·열 입력 + 미리보기 + 확인 → `BuildMarkdown()`이 헤더 + separator + 빈 데이터 행 N개 마크다운 문자열 반환. 캐럿 위치에 삽입 후 첫 셀로 이동 |
+| Dialogs/TableEditorDialog | 텍스트 노트 편집 중 `Ctrl+E`로 호출(캐럿이 표 행 안일 때). WPF 순정 `DataGrid` + `DataTable` 모델 — 셀 편집, 행/열 추가·삭제, 컬럼 헤더 더블클릭으로 이름 변경. OK 시 `ResultMarkdown`이 헤더+separator+본문 행 형식의 마크다운 표 문자열 반환. `DraggableNoteControl.EditTableAtCaret`이 표 영역을 식별해 결과로 치환 |
 
 ## 컨버터
 
