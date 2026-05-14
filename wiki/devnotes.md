@@ -1,6 +1,11 @@
 <!-- 최종 수정: 2026-05-14 -->
 # 개발 노트
 
+## 최근 변경 (2026-05-14, Vi 제거 + 줄 번호 wrap 정렬)
+
+- **Vi 모드 전체 제거**: `Services/ViController.cs` 삭제. `AppSettings`에서 `ViModeEnabled`/`ViStartInNormal` 필드 제거. `HotkeySettingsDialog`에서 Vi 체크박스 제거. `MainWindow.TryHandleCanvasVi` 메서드 + `_viPending` 필드 제거. `DraggableNoteControl`에서 `_vi` 필드 + EnsureViController/OnViStateChanged/OnViQuitRequested/UpdateViBadge 제거 + ViModeBadge/CommandBar XAML 제거. `Esc`로 편집 종료 복원(Shift+Enter 종료 분기는 제거). 향후 vi 지원은 신뢰도 높은 WPF 순정 플러그인이 등장하면 재검토. 그 전까지는 자체 구현하지 않음(검증 + 텍스트 객체/카운트/operator 결합 등 풀 vim grammar 비용이 큼).
+- **줄 번호 wrap 정렬 fix**: 기존엔 `\n` 갯수로 줄 번호 계산 → `TextWrapping="Wrap"`인 TextBox에서 한 logical 줄이 시각적으로 여러 줄을 차지하면 정렬이 어긋남. 수정: `TextBox.LineCount`(wrap 포함 visual line) 개수만큼 라인 출력 + 각 visual line의 첫 char를 `GetCharacterIndexFromLineIndex`로 얻어 `text[charIdx-1] == '\n'`이면 logical 줄 시작으로 판정 → 그 행에만 숫자, wrap된 줄은 빈 라벨. `TextChanged`/`SizeChanged` 시 `Dispatcher.BeginInvoke(Loaded)`로 layout 후 재계산. gutter 폭 36 → 40으로 살짝 키움.
+
 ## 최근 변경 (2026-05-14, SQL 쿼리 노트)
 
 - **마크다운 표 → SQLite → 쿼리 결과 표 (Obsidian Dataview-like)**: `Services/QueryEngine.cs` 신규. 모든 텍스트 노트를 스캔해 헤딩(`# / ## / ...`) 직후 마크다운 표를 메모리 SQLite의 동적 테이블로 매핑. 헤딩 텍스트가 테이블 이름, 헤더 셀이 컬럼명(모두 quoted identifier 사용 — 한글 OK). 텍스트 노트 안에 ` ```sql ` 펜스가 있으면 `MarkdownRenderer.BuildSqlResult`가 그 자리에 결과 표를 그린다. 편집 모드에선 raw SQL 그대로 보이고, 표시 모드에서만 결과 렌더링.
@@ -88,6 +93,7 @@
 - [ ] **C. 자동 밀집** (보류) — 가변 크기 노트 bin packing 알고리즘 검토 필요. 최상위 그룹 기준 정렬 + 그룹 단위 정렬도 같이 검토
 
 기타:
+- [ ] **Vi 모드 재검토** (보류) — 신뢰도 높은 WPF 순정/MS 공식 vim 플러그인이 등장하면 채택. 자체 구현은 ciw/V4j/d2w 같은 텍스트 객체·카운트·operator 결합 grammar 비용이 커 보류. AvalonEdit + vim 라이브러리도 TextBox 기반 ffnote 구조와 호환성이 낮아 큰 변경 필요
 - [ ] **코드 사이닝** (공개 배포 시점에) — SignPath.io Foundation 신청(OSS 무료 EV) 또는 Microsoft Trusted Signing 가입. workflow에 서명 단계 추가
 - [ ] 캔버스 뷰 상태(pan/zoom) 노트북별 DB 저장/복원
 - [ ] 노트 색상 변경 기능

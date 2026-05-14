@@ -37,12 +37,6 @@ public class AppSettings
     public string NoteFontFamily { get; set; } = "Segoe UI";
     public double NoteFontSize { get; set; } = 13;
 
-    /// <summary>Vi 모드 (옵트인). 캔버스/편집 모두 vi-like 매핑.</summary>
-    public bool ViModeEnabled { get; set; }
-
-    /// <summary>편집 진입 시 Normal 모드로 시작 (기본 false = Insert로 시작).</summary>
-    public bool ViStartInNormal { get; set; }
-
     /// <summary>편집 모드에서 좌측 줄 번호 표시.</summary>
     public bool ShowLineNumbers { get; set; } = true;
 }

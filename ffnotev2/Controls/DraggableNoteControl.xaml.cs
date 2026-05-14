@@ -14,7 +14,6 @@ namespace ffnotev2.Controls;
 
 public partial class DraggableNoteControl : UserControl
 {
-    private ViController? _vi;
     private bool _isDragging;
     private Point _dragStart;
     // 일괄 드래그를 위해 선택된 모든 노트의 시작 좌표 캡처
@@ -67,10 +66,9 @@ public partial class DraggableNoteControl : UserControl
     {
         ApplyEditorFont();
         RefreshDocument();
-        // 편집 중이면 vi 활성/줄번호 표시도 즉시 갱신
+        // 편집 중이면 줄 번호 표시도 즉시 갱신
         if (EditorContainer.Visibility == Visibility.Visible)
         {
-            EnsureViController();
             SyncLineNumbersVisibility();
             UpdateLineNumbers();
         }
@@ -279,106 +277,62 @@ public partial class DraggableNoteControl : UserControl
         // 표시 모드 → 편집 모드로 스왑 (IsReadOnly 토글 회피로 한글 IME 정상 동작)
         TextDisplayScroll.Visibility = Visibility.Collapsed;
         EditorContainer.Visibility = Visibility.Visible;
-        EnsureViController();
         SyncLineNumbersVisibility();
-        UpdateLineNumbers();
         Dispatcher.BeginInvoke(new Action(() =>
         {
             Keyboard.Focus(TextEditor);
             TextEditor.CaretIndex = TextEditor.Text.Length;
             HookEditorScroll();
-        }), DispatcherPriority.Input);
-    }
-
-    private void EnsureViController()
-    {
-        var settings = CurrentSettings?.Settings;
-        if (settings is null || !settings.ViModeEnabled)
-        {
-            _vi = null;
-            UpdateViBadge();
-            return;
-        }
-        if (_vi is null)
-        {
-            _vi = new ViController(TextEditor);
-            _vi.StateChanged += OnViStateChanged;
-            _vi.QuitRequested += OnViQuitRequested;
-        }
-        _vi.Reset(settings.ViStartInNormal ? ViController.Mode.Normal : ViController.Mode.Insert);
-        UpdateViBadge();
-    }
-
-    private void OnViStateChanged()
-    {
-        UpdateViBadge();
-        if (_vi is null) return;
-        if (_vi.CurrentMode == ViController.Mode.Command)
-        {
-            CommandBar.Visibility = Visibility.Visible;
-            CommandText.Text = ":" + _vi.CommandText;
-        }
-        else
-        {
-            CommandBar.Visibility = Visibility.Collapsed;
-        }
-        TextEditor.CaretBrush = _vi.CurrentMode == ViController.Mode.Normal
-            ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x99, 0x33))
-            : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xEE, 0xEE, 0xEE));
-    }
-
-    private void OnViQuitRequested()
-    {
-        if (Window.GetWindow(this) is MainWindow mw) mw.FocusCanvas();
-    }
-
-    private void UpdateViBadge()
-    {
-        if (_vi is null)
-        {
-            ViModeBadge.Visibility = Visibility.Collapsed;
-            return;
-        }
-        ViModeBadge.Visibility = Visibility.Visible;
-        ViModeBadge.Text = _vi.CurrentMode switch
-        {
-            ViController.Mode.Normal => "NRM",
-            ViController.Mode.Insert => "INS",
-            ViController.Mode.VisualChar => "VIS",
-            ViController.Mode.VisualLine => "V-LN",
-            ViController.Mode.Command => "CMD",
-            _ => string.Empty,
-        };
+            UpdateLineNumbers();  // TextBox measure 끝난 후 LineCount 정확
+        }), DispatcherPriority.Loaded);
     }
 
     private void SyncLineNumbersVisibility()
     {
         var settings = CurrentSettings?.Settings;
         bool show = settings?.ShowLineNumbers == true;
-        LineNumberColumn.Width = show ? new GridLength(36) : new GridLength(0);
+        LineNumberColumn.Width = show ? new GridLength(40) : new GridLength(0);
         LineNumberScroll.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    /// <summary>
+    /// TextBox의 visual line(wrap 포함) 개수만큼 라인을 출력하되 logical 줄 시작에만 숫자,
+    /// wrap된 라인은 빈 줄. TextBox.LineCount는 wrap 적용된 시각 줄 수.
+    /// </summary>
     private void UpdateLineNumbers()
     {
         if (LineNumberColumn.Width.Value <= 0) return;
         var t = TextEditor.Text ?? string.Empty;
-        int count = 1;
-        for (int i = 0; i < t.Length; i++) if (t[i] == '\n') count++;
-        var sb = new System.Text.StringBuilder(count * 4);
-        for (int i = 1; i <= count; i++)
+        int visualLines = TextEditor.LineCount;
+        if (visualLines <= 0) visualLines = 1;
+
+        var sb = new System.Text.StringBuilder(visualLines * 4);
+        int logical = 1;
+        for (int v = 0; v < visualLines; v++)
         {
-            sb.Append(i);
-            if (i < count) sb.Append('\n');
+            int charIdx;
+            try { charIdx = TextEditor.GetCharacterIndexFromLineIndex(v); }
+            catch { charIdx = -1; }
+            bool isLogicalStart = v == 0
+                || (charIdx > 0 && charIdx <= t.Length && t[charIdx - 1] == '\n');
+            if (isLogicalStart) sb.Append(logical++);
+            if (v < visualLines - 1) sb.Append('\n');
         }
         LineNumberBlock.Text = sb.ToString();
-        // 폰트 크기·family 동기화
         LineNumberBlock.FontSize = TextEditor.FontSize;
     }
 
     private void TextEditor_TextChanged(object sender, TextChangedEventArgs e)
     {
-        UpdateLineNumbers();
+        // 텍스트 변경 후 layout이 끝나야 LineCount/CharIndex가 정확
+        Dispatcher.BeginInvoke(new Action(UpdateLineNumbers), DispatcherPriority.Loaded);
+    }
+
+    private void TextEditor_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // 노트 폭 변경 → wrap 위치 변경 → 줄 번호 재계산
+        if (e.WidthChanged)
+            Dispatcher.BeginInvoke(new Action(UpdateLineNumbers), DispatcherPriority.Loaded);
     }
 
     private ScrollViewer? _editorScrollViewer;
@@ -406,12 +360,6 @@ public partial class DraggableNoteControl : UserControl
             if (nested is not null) return nested;
         }
         return null;
-    }
-
-    private void TextEditor_PreviewTextInput(object sender, TextCompositionEventArgs e)
-    {
-        if (_vi is null) return;
-        if (_vi.OnTextInput(e)) e.Handled = true;
     }
 
     private void UserControl_Loaded(object sender, RoutedEventArgs e)
@@ -524,33 +472,18 @@ public partial class DraggableNoteControl : UserControl
         if (Item is not null)
             App.MainVM.UpdateNoteContent(Item);
         RefreshDocument();  // 편집 중엔 갱신을 미뤘으므로 표시 복귀 시점에 한 번 갱신
-        if (_vi is not null) _vi.SetMode(ViController.Mode.Insert);  // 다음 편집 진입을 위해 깨끗하게
     }
 
     private void TextEditor_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        // Shift+Enter: 편집 종료 (캔버스 복귀). Esc가 vi Normal 진입용으로 빠졌으므로 명시적 종료 트리거.
-        if (e.Key == Key.Return && (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+        if (e.Key == Key.Escape)
         {
+            // ESC로 편집 종료. CanvasArea(Focusable=True)에 포커스를 옮겨 LostFocus 트리거 +
+            // 이후 화살표가 Window_PreviewKeyDown에 도달하도록 함
             if (Window.GetWindow(this) is MainWindow mw) mw.FocusCanvas();
             e.Handled = true;
             return;
         }
-
-        // Vi 모드: ViController에 우선 위임. Esc는 Insert→Normal 또는 Visual→Normal.
-        // 편집 종료는 Shift+Enter 또는 vi의 :q.
-        if (_vi is not null)
-        {
-            bool inInsert = _vi.CurrentMode == ViController.Mode.Insert;
-            if (_vi.OnPreviewKeyDown(e))
-            {
-                e.Handled = true;
-                return;
-            }
-            // Vi Normal/Visual/Command 상태에선 일반 TextBox 입력 차단
-            if (!inInsert) { e.Handled = true; return; }
-        }
-        // Vi OFF + Esc: 양보 (TextBox 자체 동작 — 무동작). 편집 종료는 Shift+Enter로만.
 
         // Tab / Shift+Tab: 표 안이면 다음/이전 셀로 점프, 그 외엔 들여쓰기 / 내어쓰기.
         if (e.Key == Key.Tab)

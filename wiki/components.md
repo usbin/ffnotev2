@@ -8,7 +8,7 @@
 | Models/NoteItem.cs | `NoteItem` | X/Y/Width/Height + Type(Text\|Image\|Link) + Content + `IsEditing`(transient — 새 노트 자동 편집 진입) + `IsSelected`(transient — 다중 선택). `ObservableObject` 상속으로 X/Y/Width/Height 변경 시 Canvas 자동 이동/리사이즈, `Content` 변경은 `MainViewModel`이 구독해 즉시 DB 저장 |
 | Models/NoteBook.cs | `NoteBook` | Name, ProcessName, Notes/Groups 컬렉션, `SnapEnabled`(격자 스냅 토글, DB 영속), `OverlayDraft`(오버레이 초안, DB 영속, 키 입력마다 저장). `ObservableProperty Name/ProcessName/SnapEnabled/OverlayDraft` |
 | Models/NoteGroup.cs | `NoteGroup` | 단순 사각형(X/Y/Width/Height) + `IsSelected`(transient). 멤버십은 동적 — bbox 완전 내포로 판정. 드래그 시작 시점 스냅샷으로 멤버 동기 이동 |
-| Models/AppSettings.cs | `AppSettings` | `ShowMain`, `ToggleOverlay`, `ToggleClickThrough`(글로벌), `NotebookSwitches[10]`(노트북 1~10 전환, 기본 Ctrl+1~Ctrl+0) + `OverlayOpacity` + `AutoStartOnLogin` + `OverlayLeft`/`OverlayTop` + `NoteFontFamily`/`NoteFontSize`(텍스트 노트 표시·편집 폰트) + `ViModeEnabled`/`ViStartInNormal`(vi 모드 토글) + `ShowLineNumbers`(편집 모드 줄 번호). (오버레이 초안은 노트북별로 분리되어 `NoteBook.OverlayDraft`로 이동) |
+| Models/AppSettings.cs | `AppSettings` | `ShowMain`, `ToggleOverlay`, `ToggleClickThrough`(글로벌), `NotebookSwitches[10]`(노트북 1~10 전환, 기본 Ctrl+1~Ctrl+0) + `OverlayOpacity` + `AutoStartOnLogin` + `OverlayLeft`/`OverlayTop` + `NoteFontFamily`/`NoteFontSize`(텍스트 노트 표시·편집 폰트) + `ShowLineNumbers`(편집 모드 줄 번호, 기본 true). (오버레이 초안은 노트북별로 분리되어 `NoteBook.OverlayDraft`로 이동) |
 | Models/HotkeyBinding.cs | `HotkeyBinding` | Modifiers + VirtualKey + `DisplayString` ("Ctrl+Alt+Z") + `MatchesLocal(KeyEventArgs)` (NoRepeat 무시한 로컬 키 매칭) |
 
 ## 서비스
@@ -20,7 +20,6 @@
 | Services/HotkeyService.cs | `HotkeyService` | `Initialize(Window)`, `Register(modifiers, vk, callback)`, `UnregisterAll()` — Win32 RegisterHotKey 래퍼 (LibraryImport source-generated P/Invoke) |
 | Services/SettingsService.cs | `SettingsService` | `%APPDATA%\ffnotev2\settings.json` 로드/저장. `AppSettings` 노출. `Save()` 호출 시 `SettingsChanged` 이벤트 — 노트 컨트롤들이 구독해 폰트 변경을 즉시 반영 |
 | Services/MarkdownRenderer.cs | `MarkdownRenderer` (static) | `Render(markdown, fontFamily, fontSize, imageBaseDir)` → `FlowDocument`. Markdig AST를 H1~H6/리스트/코드블록/이미지 임베드/링크/강조/**파이프 테이블**로 변환. soft line break도 줄바꿈으로 처리해 평문 노트 호환. 이모지 codepoint(U+1F300~U+1FAFF, U+2600~U+27BF 등)는 `Emoji.Wpf.EmojiInline`(컬러 Twemoji)으로 분할 — ZWJ/skin tone modifier/variation selector를 묶어 한 inline으로. 파이프라인에 `UsePipeTables()` 활성, `BuildTable`이 Markdig `Table` → WPF `Table`/`TableRowGroup`/`TableRow`/`TableCell` 매핑(헤더 굵게 + #3A3A3A 배경, 본문 행 하단 1px #333 가로선, 컬럼 정렬은 `ColumnDefinitions.Alignment` → `TextAlignment`) |
-| Services/ViController.cs | `ViController` | TextBox 한 개에 대한 vi 상태 머신. `Mode { Insert, Normal, VisualChar, VisualLine, Command }`. `OnPreviewKeyDown(KeyEventArgs)` 가 Handled 여부 반환, `OnTextInput`은 Command 모드 ':' 버퍼 누적. h/j/k/l/0/$/w/b/gg/G 이동, i/I/a/A/o/O 진입, x/dd/yy/p 편집, u/Ctrl+r 자체 undo 스택(LinkedList LIFO + 양방향 redo), v/V 비주얼 모드, `:q`/`:wq`/`:x` 편집 종료. IME(`Key.ImeProcessed`)는 무조건 양보. `StateChanged`/`QuitRequested` 이벤트 |
 | Services/QueryEngine.cs | `QueryEngine` | 모든 텍스트 노트의 마크다운 표를 메모리 SQLite DB의 동적 테이블로 매핑. `Rebuild(notes)` — 노트 콘텐츠 스캔해 헤딩(`# 이름`) 직후 표 발견 시 헤딩 텍스트를 테이블 이름으로 `CREATE TABLE ... AS` 생성, 헤더 셀을 컬럼명으로(quoted identifier로 한글 가능), 데이터 행 INSERT. `Execute(sql)` → `(Columns, Rows, Error)`. 식별자는 모두 `"..."` quoted. 같은 이름 테이블 중복은 첫 번째만 적용. `Disposable` |
 | Services/UpdateService.cs | `UpdateService` | Velopack 기반 GitHub Releases 업데이트 체크. 설치된 빌드만 동작(개발 환경 자동 스킵), 메인 창 첫 가시 시 1회 호출 |
 | Services/AutoStartService.cs | `AutoStartService` | `HKCU\...\Run\ffnote` 레지스트리 R/W. `Enable()`/`Disable()`/`IsEnabled` |
@@ -66,8 +65,7 @@
 ### 기본 단축키 (변경 불가)
 
 - 노트/그룹 이동: `Ctrl+화살표` 1px / `Ctrl+Shift+화살표` 격자 정렬 후 10px (노트·그룹 모두 적용; 그룹은 멤버 포함 동기 이동) / `화살표` 인접 노트로 선택 이동
-- 편집: `Enter` 편집 시작 / `Esc` 편집/선택 종료 / `Alt+화살표`(편집 중) 인접 노트로 편집 이동 / 더블클릭 / 편집 중 `Tab` 들여쓰기·`Shift+Tab` 내어쓰기 (공백 4칸 단위, 다중 줄 selection 시 포함된 모든 줄에 일괄 적용). 표 행 내부에선 Tab/Shift+Tab이 셀 점프, 헤더 줄 끝 Enter는 separator 자동 추가, 줄 끝 Enter는 같은 컬럼 수 빈 행 추가. `Ctrl+T` 빈 표 삽입 다이얼로그
-- **Vi 모드**(옵트인, 단축키 설정 다이얼로그에서 토글): 캔버스에서 `h/j/k/l` 인접 노트 이동, `Ctrl+hjkl` 1px nudge, `i`/`Enter`/`a` 편집, `o` 아래 새 노트, `Shift+O` 위 새 노트, `x`/`dd` 삭제, `yy` 복사, `p` 우측 옆 붙여넣기, `u`/`Ctrl+r` Undo/Redo, `gg`/`G` 첫·마지막 노트. 편집 모드에선 Insert/Normal/VisualChar/VisualLine/Command 상태, `Esc` Insert→Normal·Normal→편집 종료, `i/I/a/A/o/O` Insert 진입, `h/j/k/l/0/$/w/b/gg/G` 이동, `x/dd/yy/p` 편집, `u`/`Ctrl+r` 자체 undo 스택, `v`/`V` 비주얼, `:q`/`:wq` 편집 종료. `ViStartInNormal` 보조 토글로 편집 진입 시작 모드 변경 가능. `ShowLineNumbers` 토글로 편집 모드 좌측 줄 번호 gutter
+- 편집: `Enter` 편집 시작 / `Esc` 편집 종료 / `Alt+화살표`(편집 중) 인접 노트로 편집 이동 / 더블클릭 / 편집 중 `Tab` 들여쓰기·`Shift+Tab` 내어쓰기 (공백 4칸 단위, 다중 줄 selection 시 포함된 모든 줄에 일괄 적용). 표 행 내부에선 Tab/Shift+Tab이 셀 점프, 헤더 줄 끝 Enter는 separator 자동 추가, 줄 끝 Enter는 같은 컬럼 수 빈 행 추가. `Ctrl+T` 빈 표 삽입 다이얼로그. 좌측에 줄 번호 gutter(`ShowLineNumbers` 토글, 기본 ON) — TextBox `LineCount`(wrap 포함 visual line) 기준으로 logical 줄 시작 행에만 숫자, wrap된 시각 줄은 빈 라벨
 - 그룹: `Ctrl+G` 만들기 / `Ctrl+Shift+G` 해제
 - 선택/삭제: 빈 캔버스 좌클릭 드래그(마키) / `Shift+클릭` 토글 / `Delete` 선택 노트·그룹 삭제 / 노트·그룹 우클릭 → 통합 메뉴(삭제하기/그룹 해제)
 - 클립보드: `Ctrl+C` 선택 노트 복사 (Text/Link → SetText, Image → SetImage) / `Ctrl+V` 붙여넣기
