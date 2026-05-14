@@ -67,6 +67,8 @@ public static class MarkdownRenderer
                 return BuildHeading(h, baseFontSize, imageBaseDir);
             case ListBlock list:
                 return BuildList(list, baseFontSize, imageBaseDir);
+            case FencedCodeBlock fcb when string.Equals(fcb.Info, "sql", StringComparison.OrdinalIgnoreCase):
+                return BuildSqlResult(fcb.Lines.ToString(), baseFontSize);
             case FencedCodeBlock fcb:
                 return BuildCodeBlock(fcb.Lines.ToString());
             case CodeBlock cb:
@@ -317,6 +319,81 @@ public static class MarkdownRenderer
             (isHeader ? headerGroup : bodyGroup).Rows.Add(wpfRow);
         }
 
+        return table;
+    }
+
+    private static System.Windows.Documents.Block BuildSqlResult(string sql, double baseFontSize)
+    {
+        var app = System.Windows.Application.Current as App;
+        if (app is null || App.Query is null)
+        {
+            return new Paragraph(new Run("쿼리 엔진 미준비")) { Foreground = Brushes.OrangeRed };
+        }
+        var (cols, rows, err) = App.Query.Execute(sql);
+        if (err is not null)
+        {
+            var p = new Paragraph
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0x33, 0x1A, 0x1A)),
+                Foreground = Brushes.OrangeRed,
+                Padding = new Thickness(8, 6, 8, 6),
+                Margin = new Thickness(0, 4, 0, 4),
+            };
+            p.Inlines.Add(new Run("SQL 오류: ") { FontWeight = FontWeights.Bold });
+            p.Inlines.Add(new Run(err));
+            return p;
+        }
+        if (cols.Count == 0)
+        {
+            return new Paragraph(new Run("(결과 없음 — SELECT 외 명령일 수 있음)"))
+            { Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)) };
+        }
+
+        var table = new WpfTable
+        {
+            CellSpacing = 0,
+            Margin = new Thickness(0, 4, 0, 4),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
+            BorderThickness = new Thickness(0, 1, 0, 1),
+        };
+        for (int i = 0; i < cols.Count; i++) table.Columns.Add(new TableColumn());
+        var headerGroup = new TableRowGroup();
+        var bodyGroup = new TableRowGroup();
+        table.RowGroups.Add(headerGroup);
+        table.RowGroups.Add(bodyGroup);
+
+        var headerBg = new SolidColorBrush(Color.FromRgb(0x2A, 0x3A, 0x4A));
+        var cellBorder = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+
+        var hRow = new WpfTableRow();
+        foreach (var c in cols)
+        {
+            hRow.Cells.Add(new WpfTableCell(new Paragraph(new Run(c)) { Margin = new Thickness(0) })
+            {
+                Background = headerBg,
+                FontWeight = FontWeights.Bold,
+                Padding = new Thickness(6, 2, 6, 2),
+            });
+        }
+        headerGroup.Rows.Add(hRow);
+
+        foreach (var r in rows)
+        {
+            var bRow = new WpfTableRow();
+            for (int i = 0; i < cols.Count; i++)
+            {
+                var val = i < r.Count ? r[i] : string.Empty;
+                bRow.Cells.Add(new WpfTableCell(new Paragraph(new Run(val)) { Margin = new Thickness(0) })
+                {
+                    Padding = new Thickness(6, 2, 6, 2),
+                    BorderBrush = cellBorder,
+                    BorderThickness = new Thickness(0, 0, 0, 1),
+                });
+            }
+            bodyGroup.Rows.Add(bRow);
+        }
+
+        // 결과 위에 작은 라벨 추가용으로 Section + caption 만들고 싶지만 단순화 위해 Table만 반환
         return table;
     }
 

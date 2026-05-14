@@ -45,6 +45,8 @@ public partial class App : Application
     public static OverlayViewModel OverlayVM { get; private set; } = null!;
     public static UndoService Undo { get; private set; } = null!;
 
+    public static QueryEngine Query { get; private set; } = null!;
+
     public GameDetectionService GameDetectionService { get; private set; } = null!;
     public SettingsService SettingsService { get; private set; } = null!;
     public AutoStartService AutoStart { get; private set; } = null!;
@@ -109,6 +111,7 @@ public partial class App : Application
         SyncAutoStartOnStartup();
         GameDetectionService = new GameDetectionService();
         Undo = new UndoService();
+        Query = new QueryEngine();
         MainVM = new MainViewModel(_db, GameDetectionService);
         OverlayVM = new OverlayViewModel(MainVM, SettingsService);
 

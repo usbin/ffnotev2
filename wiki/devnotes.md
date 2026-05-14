@@ -1,6 +1,14 @@
 <!-- 최종 수정: 2026-05-14 -->
 # 개발 노트
 
+## 최근 변경 (2026-05-14, SQL 쿼리 노트)
+
+- **마크다운 표 → SQLite → 쿼리 결과 표 (Obsidian Dataview-like)**: `Services/QueryEngine.cs` 신규. 모든 텍스트 노트를 스캔해 헤딩(`# / ## / ...`) 직후 마크다운 표를 메모리 SQLite의 동적 테이블로 매핑. 헤딩 텍스트가 테이블 이름, 헤더 셀이 컬럼명(모두 quoted identifier 사용 — 한글 OK). 텍스트 노트 안에 ` ```sql ` 펜스가 있으면 `MarkdownRenderer.BuildSqlResult`가 그 자리에 결과 표를 그린다. 편집 모드에선 raw SQL 그대로 보이고, 표시 모드에서만 결과 렌더링.
+  - 자동 갱신: `MainViewModel.UpdateNoteContent`(편집 종료 시)에서 `RebuildQueryEngine()` 호출 + `QueryResultsInvalidated` 이벤트 발화. `DraggableNoteControl`이 이벤트 구독 — Content에 ` ```sql ` 포함하는 표시 모드 노트만 `RefreshDocument`로 다시 그림(비용 절감).
+  - 노트북 전환 시(`OnCurrentNotebookChanged`)도 Rebuild.
+  - SQL 오류는 결과 영역에 빨간 글씨로 표시. 결과 0행/0열은 회색 안내 문구.
+  - 값은 모두 TEXT 저장 — 숫자 비교는 사용자가 `CAST("level" AS INTEGER) > 50` 식으로 작성.
+
 ## 최근 변경 (2026-05-14, 핫픽스)
 
 - **편집 종료 트리거 변경**: Esc → Shift+Enter. Esc는 Vi Normal 모드 진입(혹은 Visual→Normal)으로 양보. Vi OFF 환경에서도 Esc는 무동작 — 명시적 종료는 Shift+Enter 또는 vi `:q`만. `DraggableNoteControl.TextEditor_PreviewKeyDown` 맨 앞에 Shift+Enter 분기 추가, 기존 Esc → FocusCanvas 종료 분기 제거.

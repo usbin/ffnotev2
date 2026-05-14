@@ -79,6 +79,17 @@ public partial class DraggableNoteControl : UserControl
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         if (CurrentSettings is { } svc) svc.SettingsChanged -= OnSettingsChanged;
+        App.MainVM.QueryResultsInvalidated -= OnQueryInvalidated;
+    }
+
+    private void OnQueryInvalidated(object? sender, EventArgs e)
+    {
+        // ```sql 펜스를 포함하는 텍스트 노트만 다시 그림 (비용 절감)
+        if (Item is null || Item.Type != NoteType.Text) return;
+        if (EditorContainer.Visibility == Visibility.Visible) return;  // 편집 중이면 표시 갱신 불필요
+        var c = Item.Content ?? string.Empty;
+        if (c.IndexOf("```sql", StringComparison.OrdinalIgnoreCase) < 0) return;
+        RefreshDocument();
     }
 
     private void RefreshDocument()
@@ -410,6 +421,8 @@ public partial class DraggableNoteControl : UserControl
             svc.SettingsChanged -= OnSettingsChanged;  // 중복 구독 방지
             svc.SettingsChanged += OnSettingsChanged;
         }
+        App.MainVM.QueryResultsInvalidated -= OnQueryInvalidated;
+        App.MainVM.QueryResultsInvalidated += OnQueryInvalidated;
         ApplyEditorFont();
         // RefreshDocument는 Markdig 파싱 + 임베드 이미지 디코드를 동기로 수행해 노트북을
         // 처음 열 때 노트 N개의 동시 비용이 UI 스레드를 블로킹. Background priority로

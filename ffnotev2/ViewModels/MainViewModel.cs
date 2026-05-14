@@ -325,6 +325,8 @@ public partial class MainViewModel : ObservableObject
 
     public bool HasCurrentNotebook => CurrentNotebook is not null;
 
+    partial void OnCurrentNotebookChanged(NoteBook? value) => RebuildQueryEngine();
+
     public MainViewModel(DatabaseService db, GameDetectionService gameDetection)
     {
         ArgumentNullException.ThrowIfNull(db);
@@ -502,7 +504,22 @@ public partial class MainViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(note);
         _db.UpdateNote(note);
+        RebuildQueryEngine();
     }
+
+    /// <summary>현재 노트북의 모든 텍스트 노트를 스캔해 QueryEngine을 재빌드한 뒤
+    /// 표시 모드 노트들에 갱신 신호를 보낸다. ```sql 펜스를 가진 노트는 새 결과로 다시 그려진다.</summary>
+    public void RebuildQueryEngine()
+    {
+        if (App.Query is null) return;
+        var notes = CurrentNotebook?.Notes ?? (IEnumerable<NoteItem>)Array.Empty<NoteItem>();
+        App.Query.Rebuild(notes);
+        QueryResultsInvalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>표시 모드의 ```sql 결과 표를 다시 그려야 함을 알린다.
+    /// DraggableNoteControl이 구독해 RefreshDocument 호출.</summary>
+    public event EventHandler? QueryResultsInvalidated;
 
     public void UpdateNotePosition(NoteItem note)
     {
