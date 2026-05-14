@@ -1,6 +1,11 @@
 <!-- 최종 수정: 2026-05-14 -->
 # 개발 노트
 
+## 최근 변경 (2026-05-14, 자동 정렬 정확도 + 활성 셀 보존)
+
+- **px 측정 기반 정렬**: 글자 수(`DisplayWidth`) 기반은 monospace + 한글에서 폰트 fallback 비율이 정확히 2배가 아니라 ±0.x cell 어긋남. `FormattedText.Width`로 모든 셀 content를 px로 측정해 padding 공백 개수 = `round((maxPx - cellPx) / spaceW)`, separator dash 개수 = `round(maxPx / dashW)`로 정확히 같은 px 폭. 한글이 영문의 정확히 2배가 아니어도 ±0.5 cell 안으로 보정.
+- **사용자 편집 중인 셀은 raw 그대로 (정렬 제외)**: 기존엔 active 셀도 trim+re-pad해서 캐럿이 우측 새 공백 자리로 강제 이동 → backspace 시 공백이 먼저 지워지는 문제. 수정: `LocateCaretInTable`가 raw offset과 content offset 둘 다 반환, `LocateCharInTable`에서 active 셀이면 raw offset 그대로 사용해 캐럿 위치·trailing 공백 그대로 유지. 다른 셀들만 padding 조정으로 컬럼 정렬. `SplitTableCellsRaw` 헬퍼 추가.
+
 ## 최근 변경 (2026-05-14, 편집 표 자동 정렬)
 
 - **편집 모드 표 자동 정렬**: 캐럿이 표 행 안에 있을 때 `TextChanged` 후 300ms 디바운스(`DispatcherTimer`)로 표 전체를 재포맷. 컬럼별 max display width(`DisplayWidth` — 한글/CJK는 2, ASCII는 1)로 모든 셀에 좌우 공백 패딩. separator 행은 `---`로 같은 폭. 재조립 후 `TextEditor.Text` 통째 교체 + 캐럿을 같은 (row, cell, offsetInCell)로 복원(`LocateCaretInTable`/`LocateCharInTable`). 한글 IME 합성 중에 Text 교체 시 자모 분리 위험이 있으나 300ms 디바운스로 보통 합성 종료 후 동작. 자체 갱신이 재귀 호출 안 되도록 `_suppressAlign` 플래그. 새 헬퍼: `SplitTableCells`/`IsSeparatorOnly`/`DisplayWidth`/`IsWideChar`.

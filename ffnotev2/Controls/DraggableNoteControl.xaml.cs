@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Navigation;
 using System.Windows.Threading;
 using ffnotev2.Models;
@@ -420,7 +421,7 @@ public partial class DraggableNoteControl : UserControl
         int tableStart = ls;
         while (tableStart > 0)
         {
-            int prevEnd = tableStart - 1; // \n 위치
+            int prevEnd = tableStart - 1;
             if (prevEnd < 0 || t[prevEnd] != '\n') break;
             int prevStart = LineStart(t, prevEnd > 0 ? prevEnd - 1 : 0);
             if (!IsTableRowLine(t, prevStart, prevEnd)) break;
@@ -440,32 +441,68 @@ public partial class DraggableNoteControl : UserControl
         var tableText = t.Substring(tableStart, tableEnd - tableStart);
         var lines = tableText.Split('\n');
 
-        // 각 행을 cell list로 split + separator 판정
+        // 캐럿이 어느 row·cell·셀 내 raw offset에 있는지 먼저 식별 — 그 셀은 정렬에서 제외 (raw 유지)
+        var caretLoc = LocateCaretInTable(tableText, caret - tableStart);
+        int activeRow = caretLoc.Row, activeCell = caretLoc.Cell;
+
+        // 각 행을 cell list로 split (trim) + 원본 raw cell 보관 + separator 판정
         var rows = new List<string[]>();
+        var rawCells = new List<string[]>();
         var isSep = new List<bool>();
         int colCount = 0;
         foreach (var ln in lines)
         {
             var trimmed = ln.TrimEnd('\r');
             var cells = SplitTableCells(trimmed);
+            var raws = SplitTableCellsRaw(trimmed);
             if (cells.Length > colCount) colCount = cells.Length;
             rows.Add(cells);
+            rawCells.Add(raws);
             isSep.Add(IsSeparatorOnly(trimmed));
         }
         if (colCount == 0) return;
 
-        // 컬럼별 max display width (separator 행 제외)
-        var maxW = new int[colCount];
+        // 컬럼별 max content px width (separator 제외) — 한글이 영문 2배가 정확하지 않은
+        // monospace 폰트(Consolas + 맑은 고딕 fallback 등)도 정확하게 정렬
+        var tf = new Typeface(TextEditor.FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        double fontSize = TextEditor.FontSize;
+        double spaceW = MeasurePx(" ", tf, fontSize);
+        double dashW = MeasurePx("-", tf, fontSize);
+        if (spaceW <= 0) spaceW = fontSize * 0.5;
+        if (dashW <= 0) dashW = spaceW;
+
+        var maxPx = new double[colCount];
+        var contentPx = new double[rows.Count, colCount];
         for (int ri = 0; ri < rows.Count; ri++)
         {
             if (isSep[ri]) continue;
             for (int ci = 0; ci < rows[ri].Length && ci < colCount; ci++)
             {
-                int w = DisplayWidth(rows[ri][ci]);
-                if (w > maxW[ci]) maxW[ci] = w;
+                // active 셀은 raw 전체(좌우 공백 포함) 폭으로 max에 반영해 다른 셀이 그 폭에 맞춤
+                double w;
+                if (ri == activeRow && ci == activeCell)
+                    w = MeasurePx(ci < rawCells[ri].Length ? rawCells[ri][ci] : string.Empty, tf, fontSize);
+                else
+                    w = MeasurePx(rows[ri][ci], tf, fontSize) + 2 * spaceW;  // 좌우 공백 포함 폭
+                contentPx[ri, ci] = w;
+                if (w > maxPx[ci]) maxPx[ci] = w;
             }
         }
-        for (int ci = 0; ci < colCount; ci++) if (maxW[ci] < 3) maxW[ci] = 3;
+
+        // 컬럼별 padding 공백 개수 (각 셀) + separator dash 개수 (컬럼당)
+        // 셀 폭(`|` 사이): 좌측 공백 1 + content + padCount 공백 + 우측 공백 1
+        //   목표 px = spaceW + maxPx[ci] + spaceW = maxPx[ci] + 2*spaceW
+        //   현재 content px = contentPx[ri,ci]
+        //   padCount = round((maxPx[ci] - contentPx[ri,ci]) / spaceW)
+        // separator dashCount = round((maxPx[ci] + 2*spaceW) / dashW) — 셀 폭에 맞춤
+        // dashCount: separator 셀의 `-` 개수가 다른 셀 폭(maxPx[ci])과 같은 px가 되도록
+        var dashCount = new int[colCount];
+        for (int ci = 0; ci < colCount; ci++)
+        {
+            int dc = (int)Math.Round(maxPx[ci] / dashW);
+            if (dc < 3) dc = 3;
+            dashCount[ci] = dc;
+        }
 
         // 재조립
         var sb = new System.Text.StringBuilder();
@@ -474,15 +511,22 @@ public partial class DraggableNoteControl : UserControl
             sb.Append('|');
             for (int ci = 0; ci < colCount; ci++)
             {
-                var cell = ci < rows[ri].Length ? rows[ri][ci] : string.Empty;
                 if (isSep[ri])
                 {
-                    sb.Append(new string('-', maxW[ci] + 2));
+                    sb.Append(new string('-', dashCount[ci]));
+                }
+                else if (ri == activeRow && ci == activeCell)
+                {
+                    // 사용자 편집 중인 셀 — raw 그대로 보존(좌우 공백 포함)
+                    sb.Append(ci < rawCells[ri].Length ? rawCells[ri][ci] : string.Empty);
                 }
                 else
                 {
-                    int pad = maxW[ci] - DisplayWidth(cell);
-                    sb.Append(' ').Append(cell).Append(new string(' ', Math.Max(0, pad))).Append(' ');
+                    var cell = ci < rows[ri].Length ? rows[ri][ci] : string.Empty;
+                    // contentPx[ri,ci]는 이미 좌우 공백 포함된 셀 폭. 부족분만 공백 패딩 추가.
+                    int pad = (int)Math.Round((maxPx[ci] - contentPx[ri, ci]) / spaceW);
+                    if (pad < 0) pad = 0;
+                    sb.Append(' ').Append(cell).Append(new string(' ', pad)).Append(' ');
                 }
                 sb.Append('|');
             }
@@ -491,13 +535,12 @@ public partial class DraggableNoteControl : UserControl
         var newTableText = sb.ToString();
         if (newTableText == tableText) return;
 
-        // 캐럿 보존: 표 안이면 행/셀 위치 보존, 표 밖이면 길이 차이만큼 보정
+        // 캐럿 보존: active 셀은 raw 보존되므로 raw offset 그대로, 다른 셀이면 content offset 기반
         int newCaret = caret;
         if (caret >= tableStart && caret <= tableEnd)
         {
-            // 같은 행·셀 + 셀 안에서의 글자 offset 보존
-            var (oldRowIdx, oldCellIdx, oldOffsetInCell) = LocateCaretInTable(tableText, caret - tableStart);
-            newCaret = tableStart + LocateCharInTable(newTableText, oldRowIdx, oldCellIdx, oldOffsetInCell);
+            newCaret = tableStart + LocateCharInTable(newTableText, caretLoc.Row, caretLoc.Cell,
+                caretLoc.RawOffset, caretLoc.ContentOffset, activeRow, activeCell);
         }
         else if (caret > tableEnd)
         {
@@ -515,47 +558,90 @@ public partial class DraggableNoteControl : UserControl
         finally { _suppressAlign = false; }
     }
 
-    // tableText 안에서 char offset → (row index, cell index, cell 안 글자 offset)
-    private static (int Row, int Cell, int OffsetInCell) LocateCaretInTable(string tableText, int offsetInTable)
+    private static double MeasurePx(string s, Typeface tf, double size)
     {
-        int row = 0, cell = 0, offsetInCell = 0;
-        int p = 0;
-        bool inCell = false;
-        while (p < offsetInTable && p < tableText.Length)
-        {
-            char ch = tableText[p];
-            if (ch == '\n') { row++; cell = 0; offsetInCell = 0; inCell = false; }
-            else if (ch == '|') { cell++; offsetInCell = 0; inCell = true; }
-            else if (inCell) offsetInCell++;
-            p++;
-        }
-        return (row, Math.Max(0, cell - 1), offsetInCell);
+        if (string.IsNullOrEmpty(s)) return 0;
+        var ft = new FormattedText(s,
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight, tf, size,
+            System.Windows.Media.Brushes.Black, 1.0);
+        return ft.Width;
     }
 
-    // newTableText에서 (row, cell, offsetInCell) → char index 안에서의 위치
-    private static int LocateCharInTable(string newTableText, int targetRow, int targetCell, int targetOffset)
+    // tableText 안에서 char offset → (row, cell, raw offset, content offset)
+    // RawOffset: 셀 시작(`|` 다음) 기준 char offset (좌우 공백 포함)
+    // ContentOffset: trimmed content 안에서의 offset (좌측 공백 제외)
+    private static (int Row, int Cell, int RawOffset, int ContentOffset) LocateCaretInTable(string tableText, int offsetInTable)
     {
-        int row = 0, cellIdx = -1;
-        int p = 0;
-        while (p < newTableText.Length)
+        int row = 0, cell = -1, lastPipe = -1;
+        for (int i = 0; i < offsetInTable && i < tableText.Length; i++)
         {
-            char ch = newTableText[p];
-            if (row == targetRow && cellIdx == targetCell)
+            char ch = tableText[i];
+            if (ch == '\n') { row++; cell = -1; lastPipe = -1; }
+            else if (ch == '|') { cell++; lastPipe = i; }
+        }
+        if (cell < 0 || lastPipe < 0) return (row, 0, 0, 0);
+
+        int cellStart = lastPipe + 1;
+        int nextPipe = tableText.IndexOf('|', offsetInTable);
+        int nextNl = tableText.IndexOf('\n', offsetInTable);
+        int cellEnd;
+        if (nextPipe < 0) cellEnd = nextNl < 0 ? tableText.Length : nextNl;
+        else if (nextNl >= 0 && nextNl < nextPipe) cellEnd = nextNl;
+        else cellEnd = nextPipe;
+
+        int leftSp = 0;
+        while (cellStart + leftSp < cellEnd && tableText[cellStart + leftSp] == ' ') leftSp++;
+        int rightSp = 0;
+        while (cellEnd - 1 - rightSp >= cellStart && tableText[cellEnd - 1 - rightSp] == ' ') rightSp++;
+        int contentLen = Math.Max(0, cellEnd - cellStart - leftSp - rightSp);
+        int raw = Math.Max(0, offsetInTable - cellStart);
+        int trimmed = Math.Max(0, Math.Min(contentLen, raw - leftSp));
+        return (row, cell, raw, trimmed);
+    }
+
+    // newTableText에서 (row, cell, rawOffset, contentOffset) + active 여부 → char index
+    private static int LocateCharInTable(string newTableText, int targetRow, int targetCell,
+        int targetRawOffset, int targetContentOffset, int activeRow, int activeCell)
+    {
+        int row = 0, cell = -1;
+        for (int i = 0; i < newTableText.Length; i++)
+        {
+            char ch = newTableText[i];
+            if (ch == '\n') { row++; cell = -1; }
+            else if (ch == '|')
             {
-                // 셀 안 내용 부분 — 패딩 좌측 공백 1개 + 실제 컨텐츠
-                // 셀 시작(`|` 다음)부터 다음 `|`까지가 셀 내용 영역
-                int cellStart = p;
-                int cellEnd = newTableText.IndexOf('|', p);
-                if (cellEnd < 0) cellEnd = newTableText.Length;
-                // 셀 내용 = " <content><padding> " → trim된 컨텐츠를 찾으려면 좌측 공백 1개 스킵
-                int contentStart = cellStart + (cellStart < newTableText.Length && newTableText[cellStart] == ' ' ? 1 : 0);
-                return Math.Min(contentStart + targetOffset, cellEnd);
+                cell++;
+                if (row == targetRow && cell == targetCell)
+                {
+                    int cellStart = i + 1;
+                    int nextPipe = newTableText.IndexOf('|', cellStart);
+                    int nextNl = newTableText.IndexOf('\n', cellStart);
+                    int cellEnd;
+                    if (nextPipe < 0) cellEnd = nextNl < 0 ? newTableText.Length : nextNl;
+                    else if (nextNl >= 0 && nextNl < nextPipe) cellEnd = nextNl;
+                    else cellEnd = nextPipe;
+
+                    if (row == activeRow && cell == activeCell)
+                    {
+                        // active 셀은 raw 보존됐으므로 raw offset 그대로
+                        return Math.Min(cellStart + targetRawOffset, cellEnd);
+                    }
+                    int leftSp = 0;
+                    while (cellStart + leftSp < cellEnd && newTableText[cellStart + leftSp] == ' ') leftSp++;
+                    return Math.Min(cellStart + leftSp + targetContentOffset, cellEnd);
+                }
             }
-            if (ch == '\n') { row++; cellIdx = -1; }
-            else if (ch == '|') { cellIdx++; }
-            p++;
         }
         return newTableText.Length;
+    }
+
+    // trim 안 한 raw cell split — active 셀 보존용
+    private static string[] SplitTableCellsRaw(string row)
+    {
+        if (row.Length < 2 || row[0] != '|' || row[^1] != '|') return new[] { row };
+        var inner = row.Substring(1, row.Length - 2);
+        return inner.Split('|');
     }
 
     private static string[] SplitTableCells(string row)
