@@ -160,10 +160,17 @@ public partial class App : Application
         menu.Items.Add("오버레이 토글", null, (_, _) => ToggleOverlay());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("설정...", null, (_, _) => ShowSettings());
+        menu.Items.Add("업데이트 확인...", null, (_, _) => CheckForUpdatesManual());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("종료", null, (_, _) => ExitApp());
         _tray.ContextMenuStrip = menu;
         _tray.DoubleClick += (_, _) => ShowMain();
+    }
+
+    public void CheckForUpdatesManual()
+    {
+        ShowMain();
+        _ = new UpdateService().CheckAndPromptAsync(_mainWindow, manual: true);
     }
 
     /// <summary>설정과 실제 레지스트리 상태를 일치시킨다 (앱 시작 시 1회).</summary>

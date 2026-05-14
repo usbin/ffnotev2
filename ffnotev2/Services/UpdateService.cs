@@ -19,20 +19,36 @@ public class UpdateService
         _mgr = new UpdateManager(new GithubSource(RepoUrl, accessToken: null, prerelease: false));
     }
 
-    public async Task CheckAndPromptAsync(Window owner)
+    /// <summary>
+    /// 새 버전 확인 + 동의 시 다운로드·재시작.
+    /// <paramref name="manual"/>=true면 "최신 버전" / "개발 빌드" / 네트워크 실패도 사용자에게 알린다.
+    /// </summary>
+    public async Task CheckAndPromptAsync(Window? owner, bool manual = false)
     {
         // 설치되지 않은 환경(개발 빌드)에서는 동작하지 않음
-        if (!_mgr.IsInstalled) return;
+        if (!_mgr.IsInstalled)
+        {
+            if (manual)
+                MessageBox.Show(owner!, "개발 빌드에서는 업데이트가 지원되지 않습니다.", "ffnote v2",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
 
         try
         {
             var info = await _mgr.CheckForUpdatesAsync().ConfigureAwait(true);
-            if (info is null) return; // 새 버전 없음
+            if (info is null)
+            {
+                if (manual)
+                    MessageBox.Show(owner!, "이미 최신 버전입니다.", "ffnote v2",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
 
             var version = info.TargetFullRelease.Version;
             var msg = $"새 버전 {version}이(가) 있습니다.\n지금 업데이트하시겠습니까?\n\n" +
                       $"확인 시 자동으로 다운로드하고 앱이 재시작됩니다.";
-            var result = MessageBox.Show(owner, msg, "ffnote v2 업데이트",
+            var result = MessageBox.Show(owner!, msg, "ffnote v2 업데이트",
                 MessageBoxButton.OKCancel, MessageBoxImage.Information);
             if (result != MessageBoxResult.OK) return;
 
@@ -45,9 +61,12 @@ public class UpdateService
             _mgr.WaitExitThenApplyUpdates(info);
             Application.Current.Shutdown();
         }
-        catch
+        catch (Exception ex)
         {
-            // 네트워크/GitHub 일시적 실패는 사용자에게 알리지 않고 조용히 무시
+            if (manual)
+                MessageBox.Show(owner!, "업데이트 확인에 실패했습니다.\n" + ex.Message, "ffnote v2",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            // 자동 체크 시 네트워크/GitHub 일시적 실패는 조용히 무시
         }
     }
 }

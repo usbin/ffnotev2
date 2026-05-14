@@ -1,6 +1,10 @@
 <!-- 최종 수정: 2026-05-14 -->
 # 개발 노트
 
+## 최근 변경 (2026-05-14, 수동 업데이트 확인)
+
+- **트레이 메뉴에 "업데이트 확인..." 추가**: 기존 자동 체크(메인 창 첫 가시 시 1회)에 더해 사용자가 임의 시점에 수동 호출 가능. `UpdateService.CheckAndPromptAsync`에 `bool manual = false` 파라미터 추가 — manual=true면 "이미 최신 버전입니다" / "개발 빌드는 미지원" / 네트워크 실패 메시지를 모두 사용자에게 표시(자동 체크 시엔 silent 유지). 트레이 메뉴 클릭 시 `App.CheckForUpdatesManual` → `ShowMain()` 호출 후 다이얼로그 owner를 메인 창으로 지정.
+
 ## 최근 변경 (2026-05-14, 편집 표 셀 그리드 오버레이)
 
 - **편집 모드 표 셀 그리드**: `Controls/TableGridAdorner` 신규 — TextBox 위에 `AdornerLayer`로 표 셀 외곽선만 오버레이. `IsHitTestVisible=false`로 입력·캐럿·IME에 전혀 영향 없음. raw 마크다운 텍스트 그대로 보존. 표 행은 양 끝이 `|`이고 가운데에 `|`가 1개 이상인 줄로 판정. 첫 표 행의 각 `|` X 좌표(`GetRectFromCharacterIndex`)에서 표 시작 Y → 표 끝 Y까지 세로선, 각 행 상단에 가로선 + 표 하단. `DraggableNoteControl`이 BeginEdit 시 `AdornerLayer.GetAdornerLayer(TextEditor).Add(_tableAdorner)`, LostFocus 시 Remove. TextChanged/SizeChanged/ScrollChanged 모두 `_tableAdorner?.InvalidateVisual()` 트리거.
