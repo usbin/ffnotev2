@@ -43,10 +43,17 @@
                 <ListBox Grid.Row="1" x:Name="NotebookList"
                          ItemsSource="{Binding Notebooks}"
                          SelectedItem="{Binding CurrentNotebook, Mode=TwoWay}"
-                         Background="Transparent" Foreground="#FFEEEEEE" BorderThickness="0">
+                         Background="Transparent" Foreground="#FFEEEEEE" BorderThickness="0"
+                         AllowDrop="True"
+                         PreviewMouseLeftButtonDown="NotebookList_PreviewMouseLeftButtonDown"
+                         PreviewMouseMove="NotebookList_PreviewMouseMove"
+                         DragOver="NotebookList_DragOver"
+                         DragLeave="NotebookList_DragLeave"
+                         Drop="NotebookList_Drop">
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type m:NoteBook}">
-                            <Grid Margin="0,2,0,2">
+                            <Grid Margin="0,2,0,2" Background="Transparent"
+                                  ToolTip="드래그하여 순서 변경">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
@@ -170,12 +177,51 @@
                     ToolTip="사이드바 펼치기"
                     Click="SidebarToggle_Click"/>
 
+            <!-- 미니맵 (기본 숨김, 토글 버튼으로 표시) -->
+            <Border x:Name="MinimapHost"
+                    HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                    Margin="0,0,12,48" Padding="6"
+                    Background="#EE222222" CornerRadius="4"
+                    BorderBrush="#FF3A3A3A" BorderThickness="1"
+                    Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Text="미니맵 · 클릭/드래그로 이동" FontSize="10"
+                               Foreground="#FF999999" Margin="2,0,0,4"/>
+                    <Border Background="#FF1A1A1A" CornerRadius="2">
+                        <Canvas x:Name="MinimapCanvas" Width="240" Height="170"
+                                Background="Transparent" ClipToBounds="True"
+                                MouseLeftButtonDown="MinimapCanvas_MouseLeftButtonDown"
+                                MouseLeftButtonUp="MinimapCanvas_MouseLeftButtonUp"
+                                MouseMove="MinimapCanvas_MouseMove"/>
+                    </Border>
+                </StackPanel>
+            </Border>
+
             <!-- 줌 인디케이터 -->
             <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
                     Margin="0,0,12,12" Padding="8,4"
                     Background="#AA222222" CornerRadius="3"
                     Visibility="{Binding HasCurrentNotebook, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
+                    <ToggleButton x:Name="MinimapToggle"
+                                  Width="22" Height="20" Margin="0,0,8,0"
+                                  BorderThickness="0"
+                                  ToolTip="미니맵 — 전체 노트 영역과 현재 화면 위치 보기"
+                                  Click="MinimapToggle_Click">
+                        <ToggleButton.Style>
+                            <Style TargetType="ToggleButton">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="#FFCCCCCC"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter Property="Background" Value="#FF5599FF"/>
+                                        <Setter Property="Foreground" Value="#FF111111"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ToggleButton.Style>
+                        <TextBlock Text="🗺" FontSize="12"/>
+                    </ToggleButton>
                     <Button Width="22" Height="20" Margin="0,0,4,0"
                             Background="Transparent" BorderThickness="0" Foreground="#FFCCCCCC"
                             ToolTip="일괄 정렬 (전체 노트 좌상단 스냅 + 사이즈 ceil + 충돌 시 우/하 시프트)"

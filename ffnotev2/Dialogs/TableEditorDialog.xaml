@@ -19,7 +19,7 @@
         </StackPanel>
         <DataGrid x:Name="Grid"
                   AutoGenerateColumns="True"
-                  CanUserAddRows="True"
+                  CanUserAddRows="False"
                   CanUserDeleteRows="True"
                   CanUserResizeColumns="True"
                   CanUserSortColumns="False"
@@ -37,7 +37,7 @@
                   ColumnHeaderStyle="{StaticResource {x:Type DataGridColumnHeader}}">
             <DataGrid.Resources>
                 <Style TargetType="{x:Type DataGridColumnHeader}">
-                    <EventSetter Event="MouseDoubleClick" Handler="ColumnHeader_DoubleClick"/>
+                    <EventSetter Event="PreviewMouseLeftButtonDown" Handler="ColumnHeader_DoubleClick"/>
                 </Style>
             </DataGrid.Resources>
         </DataGrid>

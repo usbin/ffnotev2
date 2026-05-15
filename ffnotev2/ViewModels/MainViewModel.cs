@@ -411,6 +411,19 @@ public partial class MainViewModel : ObservableObject
         CurrentNotebook = nb;
     }
 
+    /// <summary>사이드바에서 노트북을 newIndex 위치로 이동(드래그 재정렬). 변경된 순서를 DB에 영속화.</summary>
+    public void MoveNotebook(NoteBook notebook, int newIndex)
+    {
+        ArgumentNullException.ThrowIfNull(notebook);
+        int oldIndex = Notebooks.IndexOf(notebook);
+        if (oldIndex < 0) return;
+        newIndex = Math.Clamp(newIndex, 0, Notebooks.Count - 1);
+        if (newIndex == oldIndex) return;
+        Notebooks.Move(oldIndex, newIndex);
+        for (int i = 0; i < Notebooks.Count; i++) Notebooks[i].SortOrder = i;
+        _db.UpdateNotebookOrder(Notebooks.Select(n => n.Id).ToList());
+    }
+
     public void RenameNotebook(NoteBook notebook, string newName)
     {
         ArgumentNullException.ThrowIfNull(notebook);

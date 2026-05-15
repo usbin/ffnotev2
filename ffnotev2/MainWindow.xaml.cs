@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -397,6 +398,28 @@ public partial class MainWindow : Window
         return ((p.X - CanvasTranslate.X) / sx, (p.Y - CanvasTranslate.Y) / sy);
     }
 
+    /// <summary>
+    /// 노트 드래그 중 호출. 마우스가 캔버스 가장자리 영역에 들어오면 그 방향으로 화면을
+    /// 자동 스크롤(pan)한다. p는 CanvasArea 기준 마우스 좌표. 화면이 움직였으면 true.
+    /// </summary>
+    public bool AutoPanForDrag(Point p)
+    {
+        double vw = CanvasArea.ActualWidth, vh = CanvasArea.ActualHeight;
+        if (vw <= 0 || vh <= 0) return false;
+        const double zone = 56;      // 가장자리 감지 폭(px)
+        const double maxSpeed = 24;  // tick당 최대 이동(px)
+        double dx = 0, dy = 0;
+        if (p.X < zone) dx = (zone - p.X) / zone * maxSpeed;
+        else if (p.X > vw - zone) dx = -((p.X - (vw - zone)) / zone) * maxSpeed;
+        if (p.Y < zone) dy = (zone - p.Y) / zone * maxSpeed;
+        else if (p.Y > vh - zone) dy = -((p.Y - (vh - zone)) / zone) * maxSpeed;
+        if (dx == 0 && dy == 0) return false;
+        // 침투 비율이 1을 넘지 않도록 클램프 (모서리 밖으로 멀리 나가도 속도 폭주 방지)
+        CanvasTranslate.X += Math.Clamp(dx, -maxSpeed, maxSpeed);
+        CanvasTranslate.Y += Math.Clamp(dy, -maxSpeed, maxSpeed);
+        return true;
+    }
+
     private void SidebarToggle_Click(object sender, RoutedEventArgs e)
     {
         _sidebarCollapsed = !_sidebarCollapsed;
@@ -730,6 +753,249 @@ public partial class MainWindow : Window
         if (deleteMembers)
             foreach (var n in memberNotes) App.MainVM.DeleteNote(n);
         foreach (var g in groups) App.MainVM.DeleteGroup(g);
+    }
+
+    // ───────────────────────── 노트북 드래그 재정렬 ─────────────────────────
+    private Point _nbDragStart;
+    private NoteBook? _nbDragItem;
+    private Controls.InsertionLineAdorner? _nbInsertAdorner;
+
+    private void NotebookList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _nbDragStart = e.GetPosition(NotebookList);
+        _nbDragItem = (FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject)
+            ?.DataContext) as NoteBook;
+        // ⋯ 메뉴 버튼 위 클릭이면 드래그 대상 아님
+        if (FindAncestor<Button>(e.OriginalSource as DependencyObject) is not null)
+            _nbDragItem = null;
+    }
+
+    private void NotebookList_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_nbDragItem is null || e.LeftButton != MouseButtonState.Pressed) return;
+        var p = e.GetPosition(NotebookList);
+        if (Math.Abs(p.X - _nbDragStart.X) < 4 && Math.Abs(p.Y - _nbDragStart.Y) < 4) return;
+
+        DragDrop.DoDragDrop(NotebookList, _nbDragItem, DragDropEffects.Move);
+        RemoveInsertAdorner();
+        _nbDragItem = null;
+    }
+
+    private void NotebookList_DragOver(object sender, DragEventArgs e)
+    {
+        if (_nbDragItem is null) { e.Effects = DragDropEffects.None; e.Handled = true; return; }
+        e.Effects = DragDropEffects.Move;
+        e.Handled = true;
+        var (_, lineY) = ComputeDropIndex(e.GetPosition(NotebookList));
+        EnsureInsertAdorner().SetY(lineY);
+    }
+
+    private void NotebookList_DragLeave(object sender, DragEventArgs e) => RemoveInsertAdorner();
+
+    private void NotebookList_Drop(object sender, DragEventArgs e)
+    {
+        RemoveInsertAdorner();
+        if (_nbDragItem is null) return;
+        var (index, _) = ComputeDropIndex(e.GetPosition(NotebookList));
+        // 드롭 위치가 원래 항목 뒤쪽이면 자기 자신 제거분만큼 보정
+        int oldIndex = App.MainVM.Notebooks.IndexOf(_nbDragItem);
+        if (oldIndex >= 0 && index > oldIndex) index--;
+        App.MainVM.MoveNotebook(_nbDragItem, index);
+        _nbDragItem = null;
+    }
+
+    /// <summary>드롭 포인트로부터 (삽입 인덱스, 삽입선 Y) 계산.</summary>
+    private (int Index, double LineY) ComputeDropIndex(Point pos)
+    {
+        int count = NotebookList.Items.Count;
+        for (int i = 0; i < count; i++)
+        {
+            if (NotebookList.ItemContainerGenerator.ContainerFromIndex(i) is not ListBoxItem lbi
+                || !lbi.IsVisible) continue;
+            var topLeft = lbi.TranslatePoint(new Point(0, 0), NotebookList);
+            var mid = topLeft.Y + lbi.ActualHeight / 2;
+            if (pos.Y < mid) return (i, topLeft.Y);
+            if (i == count - 1) return (count, topLeft.Y + lbi.ActualHeight);
+        }
+        return (count, 0);
+    }
+
+    private Controls.InsertionLineAdorner EnsureInsertAdorner()
+    {
+        if (_nbInsertAdorner is null)
+        {
+            _nbInsertAdorner = new Controls.InsertionLineAdorner(NotebookList);
+            AdornerLayer.GetAdornerLayer(NotebookList)?.Add(_nbInsertAdorner);
+        }
+        return _nbInsertAdorner;
+    }
+
+    private void RemoveInsertAdorner()
+    {
+        if (_nbInsertAdorner is null) return;
+        AdornerLayer.GetAdornerLayer(NotebookList)?.Remove(_nbInsertAdorner);
+        _nbInsertAdorner = null;
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? d) where T : DependencyObject
+    {
+        while (d is not null)
+        {
+            if (d is T t) return t;
+            d = VisualTreeWalker.GetAnyParent(d);
+        }
+        return null;
+    }
+
+    // ───────────────────────── 미니맵 ─────────────────────────
+    private DispatcherTimer? _minimapTimer;
+    private double _mmScale = 1, _mmOx, _mmOy;
+    private bool _minimapDragging;
+
+    private void MinimapToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (MinimapToggle.IsChecked == true)
+        {
+            MinimapHost.Visibility = Visibility.Visible;
+            _minimapTimer ??= CreateMinimapTimer();
+            _minimapTimer.Start();
+            Dispatcher.BeginInvoke(new Action(RefreshMinimap), DispatcherPriority.Loaded);
+        }
+        else
+        {
+            _minimapTimer?.Stop();
+            MinimapHost.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private DispatcherTimer CreateMinimapTimer()
+    {
+        var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+        // pan/zoom/노트 이동/추가 등 모든 변경을 단일 주기 갱신으로 커버
+        t.Tick += (_, _) => RefreshMinimap();
+        return t;
+    }
+
+    private void RefreshMinimap()
+    {
+        if (MinimapHost.Visibility != Visibility.Visible) return;
+        MinimapCanvas.Children.Clear();
+        var nb = App.MainVM.CurrentNotebook;
+        if (nb is null) return;
+
+        double cw = MinimapCanvas.Width, ch = MinimapCanvas.Height;
+
+        // 현재 화면이 보고 있는 월드 영역
+        var (vx0, vy0) = ScreenToWorld(new Point(0, 0));
+        var (vx1, vy1) = ScreenToWorld(new Point(CanvasArea.ActualWidth, CanvasArea.ActualHeight));
+
+        // 전체 경계 = 모든 노트/그룹 + 현재 뷰포트 (뷰포트도 항상 보이도록 포함)
+        double minX = Math.Min(vx0, vx1), minY = Math.Min(vy0, vy1);
+        double maxX = Math.Max(vx0, vx1), maxY = Math.Max(vy0, vy1);
+        bool any = false;
+        void Expand(double x, double y, double w, double h)
+        {
+            any = true;
+            if (x < minX) minX = x; if (y < minY) minY = y;
+            if (x + w > maxX) maxX = x + w; if (y + h > maxY) maxY = y + h;
+        }
+        foreach (var n in nb.Notes) Expand(n.X, n.Y, n.Width, n.Height);
+        foreach (var g in nb.Groups) Expand(g.X, g.Y, g.Width, g.Height);
+        if (!any && nb.Notes.Count == 0 && nb.Groups.Count == 0) { /* 빈 노트북: 뷰포트만 */ }
+
+        const double pad = 30;
+        minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+        double bw = Math.Max(1, maxX - minX), bh = Math.Max(1, maxY - minY);
+
+        double scale = Math.Min(cw / bw, ch / bh);
+        double ox = (cw - bw * scale) / 2 - minX * scale;
+        double oy = (ch - bh * scale) / 2 - minY * scale;
+        _mmScale = scale; _mmOx = ox; _mmOy = oy;
+
+        SolidColorBrush B(byte r, byte g, byte b) =>
+            new(System.Windows.Media.Color.FromRgb(r, g, b));
+
+        // 그룹 (외곽선)
+        foreach (var grp in nb.Groups)
+        {
+            var rect = new System.Windows.Shapes.Rectangle
+            {
+                Width = Math.Max(1, grp.Width * scale),
+                Height = Math.Max(1, grp.Height * scale),
+                Stroke = B(0x66, 0x66, 0x66), StrokeThickness = 1,
+                Fill = B(0x2A, 0x2A, 0x2A)
+            };
+            Canvas.SetLeft(rect, grp.X * scale + ox);
+            Canvas.SetTop(rect, grp.Y * scale + oy);
+            MinimapCanvas.Children.Add(rect);
+        }
+
+        // 노트 (타입별 색)
+        foreach (var n in nb.Notes)
+        {
+            var fill = n.Type switch
+            {
+                Models.NoteType.Image => B(0x5A, 0x8F, 0x5A),
+                Models.NoteType.Link => B(0xB5, 0x8F, 0x4A),
+                _ => B(0x4A, 0x6F, 0xA5)
+            };
+            var rect = new System.Windows.Shapes.Rectangle
+            {
+                Width = Math.Max(2, n.Width * scale),
+                Height = Math.Max(2, n.Height * scale),
+                Fill = fill
+            };
+            Canvas.SetLeft(rect, n.X * scale + ox);
+            Canvas.SetTop(rect, n.Y * scale + oy);
+            MinimapCanvas.Children.Add(rect);
+        }
+
+        // 현재 화면 영역 (뷰포트 사각형)
+        var view = new System.Windows.Shapes.Rectangle
+        {
+            Width = Math.Max(2, (maxX == minX ? 0 : (Math.Abs(vx1 - vx0))) * scale),
+            Height = Math.Max(2, (Math.Abs(vy1 - vy0)) * scale),
+            Stroke = B(0x55, 0x99, 0xFF), StrokeThickness = 1.5,
+            Fill = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x22, 0x55, 0x99, 0xFF)),
+            IsHitTestVisible = false
+        };
+        Canvas.SetLeft(view, Math.Min(vx0, vx1) * scale + ox);
+        Canvas.SetTop(view, Math.Min(vy0, vy1) * scale + oy);
+        MinimapCanvas.Children.Add(view);
+    }
+
+    /// <summary>미니맵 위의 점을 월드 좌표로 변환한 뒤 그 지점이 화면 중앙에 오도록 화면 이동.</summary>
+    private void CenterViewOnMinimapPoint(Point p)
+    {
+        if (_mmScale <= 0) return;
+        double worldX = (p.X - _mmOx) / _mmScale;
+        double worldY = (p.Y - _mmOy) / _mmScale;
+        double s = CanvasScale.ScaleX == 0 ? 1 : CanvasScale.ScaleX;
+        CanvasTranslate.X = CanvasArea.ActualWidth / 2 - worldX * s;
+        CanvasTranslate.Y = CanvasArea.ActualHeight / 2 - worldY * s;
+        RefreshMinimap();
+    }
+
+    private void MinimapCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _minimapDragging = true;
+        MinimapCanvas.CaptureMouse();
+        CenterViewOnMinimapPoint(e.GetPosition(MinimapCanvas));
+        e.Handled = true;
+    }
+
+    private void MinimapCanvas_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_minimapDragging) return;
+        CenterViewOnMinimapPoint(e.GetPosition(MinimapCanvas));
+    }
+
+    private void MinimapCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_minimapDragging) return;
+        _minimapDragging = false;
+        if (MinimapCanvas.IsMouseCaptured) MinimapCanvas.ReleaseMouseCapture();
+        e.Handled = true;
     }
 
     private void Settings_Click(object sender, RoutedEventArgs e)

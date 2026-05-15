@@ -95,6 +95,22 @@ public class DatabaseService
             cmd.CommandText = "ALTER TABLE Notebooks ADD COLUMN OverlayDraft TEXT NOT NULL DEFAULT ''";
             cmd.ExecuteNonQuery();
         }
+
+        // 마이그레이션: Notebooks.SortOrder (사이드바 수동 정렬 순서)
+        if (!ColumnExists(conn, "Notebooks", "SortOrder"))
+        {
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "ALTER TABLE Notebooks ADD COLUMN SortOrder INTEGER NOT NULL DEFAULT 0";
+                cmd.ExecuteNonQuery();
+            }
+            // 기존 노트북은 Id 순서를 초기 정렬값으로 사용
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "UPDATE Notebooks SET SortOrder = Id";
+                cmd.ExecuteNonQuery();
+            }
+        }
     }
 
     private static bool ColumnExists(SqliteConnection conn, string table, string column)
@@ -117,7 +133,7 @@ public class DatabaseService
 
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT Id, Name, ProcessName, CreatedAt, SnapEnabled, OverlayDraft FROM Notebooks ORDER BY Id";
+            cmd.CommandText = "SELECT Id, Name, ProcessName, CreatedAt, SnapEnabled, OverlayDraft, SortOrder FROM Notebooks ORDER BY SortOrder, Id";
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
@@ -128,7 +144,8 @@ public class DatabaseService
                     ProcessName = reader.IsDBNull(2) ? null : reader.GetString(2),
                     CreatedAt = DateTime.Parse(reader.GetString(3)),
                     SnapEnabled = reader.GetInt32(4) != 0,
-                    OverlayDraft = reader.IsDBNull(5) ? string.Empty : reader.GetString(5)
+                    OverlayDraft = reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
+                    SortOrder = reader.GetInt32(6)
                 });
             }
         }
@@ -235,7 +252,33 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("$name", name);
         cmd.Parameters.AddWithValue("$proc", (object?)processName ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$created", DateTime.UtcNow.ToString("o"));
-        return Convert.ToInt32(cmd.ExecuteScalar());
+        var newId = Convert.ToInt32(cmd.ExecuteScalar());
+        // 새 노트북은 목록 맨 아래로 (SortOrder = Id, Id가 항상 최대값이므로)
+        using (var ord = conn.CreateCommand())
+        {
+            ord.CommandText = "UPDATE Notebooks SET SortOrder = $o WHERE Id = $id";
+            ord.Parameters.AddWithValue("$o", newId);
+            ord.Parameters.AddWithValue("$id", newId);
+            ord.ExecuteNonQuery();
+        }
+        return newId;
+    }
+
+    /// <summary>사이드바 드래그 재정렬 결과를 일괄 영속화. orderedIds는 위→아래 순서.</summary>
+    public void UpdateNotebookOrder(IReadOnlyList<int> orderedIds)
+    {
+        using var conn = Open();
+        using var tx = conn.BeginTransaction();
+        for (int i = 0; i < orderedIds.Count; i++)
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "UPDATE Notebooks SET SortOrder = $o WHERE Id = $id";
+            cmd.Parameters.AddWithValue("$o", i);
+            cmd.Parameters.AddWithValue("$id", orderedIds[i]);
+            cmd.ExecuteNonQuery();
+        }
+        tx.Commit();
     }
 
     public void RenameNotebook(int id, string name)

@@ -21,6 +21,9 @@ public partial class NoteBook : ObservableObject
     [ObservableProperty]
     private string overlayDraft = string.Empty;
 
+    // 사이드바 표시 순서 (DB 영속, 드래그로 수동 변경). 작을수록 위.
+    public int SortOrder { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ObservableCollection<NoteItem> Notes { get; } = new();

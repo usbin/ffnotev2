@@ -1,5 +1,13 @@
-<!-- 최종 수정: 2026-05-14 -->
+<!-- 최종 수정: 2026-05-15 -->
 # 개발 노트
+
+## 최근 변경 (2026-05-15, 노트북 드래그 정렬 + 가장자리 자동 스크롤 + 미니맵 + 표 편집 버그 수정)
+
+- **노트북 드래그 재정렬**: `Notebooks.SortOrder INTEGER` 컬럼 + 마이그레이션(초기값=Id, 신규 노트북은 SortOrder=Id로 맨 아래). `GetNotebooks()` `ORDER BY SortOrder, Id`. `DatabaseService.UpdateNotebookOrder(orderedIds)` 트랜잭션 일괄 저장, `MainViewModel.MoveNotebook(nb, newIndex)`. 사이드바 `ListBox`에 `AllowDrop` + `PreviewMouseLeftButtonDown/Move`(4px 임계 후 `DragDrop.DoDragDrop`) + `DragOver`/`Drop`. 드롭 위치는 `ComputeDropIndex`(각 `ListBoxItem` 중점 비교), 자기 자신 제거 보정. 삽입선은 `Controls/InsertionLineAdorner`(AdornerLayer). ⋯ 메뉴 버튼 위 클릭은 드래그 제외.
+- **노트 드래그 중 가장자리 자동 스크롤**: `DraggableNoteControl`에 16ms `_dragTimer` — 드래그 시작(타이틀바/본문) 시 start, 종료/Unloaded 시 stop. 매 tick `MainWindow.AutoPanForDrag(Mouse.GetPosition(CanvasArea))` 호출 → 가장자리 56px 영역이면 침투 비율에 비례해(최대 24px/tick) `CanvasTranslate` 이동. 이어서 `ApplyDrag()`가 `Mouse.GetPosition(canvas)`(=월드 좌표, pan 반영됨) 기준으로 노트 위치 재계산 → 노트가 커서 따라 새 영역으로 끌려감. 기존 `TitleBar_MouseMove`는 `ApplyDrag()` 위임으로 리팩터링(MouseMove/타이머 공용).
+- **미니맵**: 우하단 인디케이터에 🗺 토글 추가(기본 숨김). `MinimapToggle_Click`이 `MinimapHost` 표시 + 120ms 타이머로 `RefreshMinimap()` — 전체 노트/그룹 + 현재 뷰포트 bbox(+30 패딩)를 240×170 캔버스에 uniform scale 축소, 노트는 타입별 색 사각형, 그룹은 외곽선, 현재 화면은 파란 사각형. 타이머 단일 주기 갱신으로 pan/zoom/노트 이동/추가 모두 커버. 미니맵 클릭·드래그 → `CenterViewOnMinimapPoint`로 해당 월드 좌표를 화면 중앙으로(현재 줌 배율 반영).
+- **표 편집 다이얼로그 버그 수정 3건**: ① 열 추가/삭제/이름변경 후 DataGrid에 즉시 반영 안 됨 → `RebindGrid()`(ItemsSource null 후 재설정)로 컬럼 강제 재생성. WPF DataGrid는 바인딩된 DataTable의 컬럼 변경을 자동 재생성하지 않음. ② placeholder 행이 실제보다 하나 더 보임 → `CanUserAddRows=False`(행 추가는 "+ 행" 버튼). ③ 컬럼 헤더 더블클릭이 안 먹힘 → `MouseDoubleClick` EventSetter를 `PreviewMouseLeftButtonDown` + `e.ClickCount==2` 검사로 교체(컬럼 리오더/리사이즈와 공존, 더블클릭만 Handled).
+- **설정 단축키 안내 보강**: `Ctrl+E`(표 편집 다이얼로그) 항목 추가 + 노트북 드래그 정렬 / 미니맵 / 가장자리 자동 스크롤 안내 추가.
 
 ## 최근 변경 (2026-05-14, 표 편집 DataGrid 다이얼로그 + 저장 시 정렬)
 
@@ -143,15 +151,16 @@
 - [ ] **코드 사이닝** (공개 배포 시점에) — SignPath.io Foundation 신청(OSS 무료 EV) 또는 Microsoft Trusted Signing 가입. workflow에 서명 단계 추가
 - [ ] 캔버스 뷰 상태(pan/zoom) 노트북별 DB 저장/복원
 - [ ] 노트 색상 변경 기능
-- [ ] 노트북 드래그 정렬 (사이드바)
 - [ ] 노트 검색 / 필터
-- [ ] "여기로 이동" — 화면 밖 노트로 뷰 이동
 - [ ] 백업·Export·Import (SQLite + 이미지 zip)
 - [ ] DPI 스케일 변경 시 오버레이 위치 보정 (현재는 픽셀 단위 저장만)
 - [ ] 다국어
 
 ## 완료된 작업 (참조)
 
+- [x] **노트북 드래그 정렬 (사이드바)** — `SortOrder` 컬럼 + `MoveNotebook` + `InsertionLineAdorner`
+- [x] **노트 드래그 중 가장자리 자동 화면 스크롤** — `_dragTimer` + `MainWindow.AutoPanForDrag`
+- [x] **미니맵 ("여기로 이동" 대체)** — 우하단 🗺 토글, 전체 노트 영역 + 뷰포트 표시, 클릭/드래그로 이동
 - [x] 노트 리사이즈 핸들 (Thumb, 우하단)
 - [x] 클립보드 이미지 견고화 (PNG/DIB/Bitmap fallback)
 - [x] 오버레이 멀티라인 + 자동 축소

@@ -79,6 +79,7 @@ public partial class DraggableNoteControl : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        StopDragTimer();
         if (CurrentSettings is { } svc) svc.SettingsChanged -= OnSettingsChanged;
         App.MainVM.QueryResultsInvalidated -= OnQueryInvalidated;
     }
@@ -187,18 +188,51 @@ public partial class DraggableNoteControl : UserControl
         _isDragging = true;
         _dragStart = e.GetPosition(canvas);
         BuildDragSnapshots();
+        StartDragTimer();
 
         ((UIElement)sender).CaptureMouse();
         e.Handled = true;
     }
 
-    private void TitleBar_MouseMove(object sender, MouseEventArgs e)
+    private void TitleBar_MouseMove(object sender, MouseEventArgs e) => ApplyDrag();
+
+    // 드래그 중 가장자리 자동 스크롤을 위한 틱 타이머. 마우스가 멈춰 있어도
+    // 가장자리에 머무르면 계속 화면이 이동하도록 주기적으로 재평가한다.
+    private DispatcherTimer? _dragTimer;
+
+    private void StartDragTimer()
+    {
+        if (_dragTimer is not null) return;
+        _dragTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        _dragTimer.Tick += (_, _) =>
+        {
+            if (!_isDragging) { StopDragTimer(); return; }
+            if (Window.GetWindow(this) is MainWindow mw)
+            {
+                // 가장자리면 화면을 이동시킨 뒤(=캔버스가 움직임) 노트 위치를 재계산해
+                // 노트가 커서를 따라 새 영역으로 끌려가도록 한다.
+                mw.AutoPanForDrag(Mouse.GetPosition(mw.CanvasArea));
+            }
+            ApplyDrag();
+        };
+        _dragTimer.Start();
+    }
+
+    private void StopDragTimer()
+    {
+        _dragTimer?.Stop();
+        _dragTimer = null;
+    }
+
+    /// <summary>현재 마우스 위치(부모 캔버스=월드 좌표 기준)로 드래그 대상들의 위치를 갱신.
+    /// MouseMove 이벤트와 가장자리 자동 스크롤 타이머가 공용으로 호출.</summary>
+    private void ApplyDrag()
     {
         if (!_isDragging || Item is null) return;
         var canvas = FindParentCanvas();
         if (canvas is null) return;
 
-        var pos = e.GetPosition(canvas);
+        var pos = Mouse.GetPosition(canvas);
         var dx = pos.X - _dragStart.X;
         var dy = pos.Y - _dragStart.Y;
 
@@ -225,6 +259,7 @@ public partial class DraggableNoteControl : UserControl
     {
         if (!_isDragging) return;
         _isDragging = false;
+        StopDragTimer();
         ((UIElement)sender).ReleaseMouseCapture();
         // 변경된 항목만 Undo 스택에 등록 (실제 위치가 바뀐 경우만)
         var changes = new List<(Services.ItemSnapshot Old, Services.ItemSnapshot New)>();
@@ -555,6 +590,7 @@ public partial class DraggableNoteControl : UserControl
             _isDragging = true;
             _dragStart = _bodyDragStartScreen;
             BuildDragSnapshots();
+            StartDragTimer();
             // UserControl 자신이 캡처를 잡음 — 후속 MouseMove/Up이 모두 이 컨트롤로 라우팅
             ((UIElement)sender).CaptureMouse();
             // 드래그 중 커서를 SizeAll로 강제 — UserControl.Cursor가 기본값이라 캡처 중에는

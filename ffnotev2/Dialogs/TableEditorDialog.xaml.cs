@@ -79,10 +79,23 @@ public partial class TableEditorDialog : Window
         // 컬럼 자동 생성 직후 — 필요시 확장
     }
 
+    /// <summary>DataGrid는 바인딩된 DataTable의 컬럼 컬렉션 변경 시 자동으로 컬럼을
+    /// 재생성하지 않는다. 컬럼 추가/삭제/이름변경 후 ItemsSource를 다시 걸어 강제 재생성.</summary>
+    private void RebindGrid()
+    {
+        Grid.CommitEdit(DataGridEditingUnit.Cell, true);
+        Grid.CommitEdit(DataGridEditingUnit.Row, true);
+        Grid.ItemsSource = null;
+        Grid.ItemsSource = _dt.DefaultView;
+    }
+
     private void ColumnHeader_DoubleClick(object sender, MouseButtonEventArgs e)
     {
+        // PreviewMouseLeftButtonDown로 받으므로 더블클릭만 처리 (단일 클릭은 통과)
+        if (e.ClickCount != 2) return;
         if (sender is not DataGridColumnHeader header) return;
         if (header.Column is not DataGridColumn col) return;
+        e.Handled = true;
         var current = col.Header?.ToString() ?? string.Empty;
         var dlg = new RenameDialog(current) { Owner = this, Title = "컬럼 이름 변경" };
         if (dlg.ShowDialog() != true) return;
@@ -97,7 +110,7 @@ public partial class TableEditorDialog : Window
         if (_dt.Columns.Contains(current))
         {
             _dt.Columns[current]!.ColumnName = newName;
-            col.Header = newName;
+            RebindGrid();
         }
     }
 
@@ -130,6 +143,7 @@ public partial class TableEditorDialog : Window
             return;
         }
         _dt.Columns.Add(name);
+        RebindGrid();
     }
 
     private void DeleteCol_Click(object sender, RoutedEventArgs e)
@@ -148,6 +162,7 @@ public partial class TableEditorDialog : Window
         if (confirm != MessageBoxResult.OK) return;
 
         _dt.Columns.Remove(name);
+        RebindGrid();
     }
 
     private void Confirm_Click(object sender, RoutedEventArgs e)

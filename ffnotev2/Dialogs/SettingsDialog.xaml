@@ -136,7 +136,9 @@
                         <LineBreak/>
                         • 표 행 끝 Enter — 헤더 다음이면 separator 자동 추가, 데이터 행이면 빈 행 추가
                         <LineBreak/>
-                        • Ctrl+T 빈 표 삽입 / Alt+화살표 인접 텍스트 노트로 편집 이동
+                        • Ctrl+T 빈 표 삽입 / Ctrl+E 표 편집 다이얼로그(캐럿이 표 안일 때)
+                        <LineBreak/>
+                        • Alt+화살표 인접 텍스트 노트로 편집 이동
                         <LineBreak/><LineBreak/>
                         <Run FontWeight="Bold">그룹·선택</Run>
                         <LineBreak/>
@@ -147,6 +149,10 @@
                         <Run FontWeight="Bold">캔버스·클립보드</Run>
                         <LineBreak/>
                         • 휠클릭/우클릭 드래그 — 팬 / Ctrl+휠 — 줌
+                        <LineBreak/>
+                        • 노트를 화면 가장자리로 드래그 — 화면 자동 스크롤
+                        <LineBreak/>
+                        • 사이드바 노트북 드래그 — 순서 변경 / 우하단 🗺 — 미니맵
                         <LineBreak/>
                         • Ctrl+C 복사 / Ctrl+V 붙여넣기 / Ctrl+Z·Ctrl+Y·Ctrl+Shift+Z Undo/Redo
                     </TextBlock>
