@@ -79,6 +79,22 @@ public partial class TableEditorDialog : Window
         // 컬럼 자동 생성 직후 — 필요시 확장
     }
 
+    /// <summary>사용자가 드래그로 바꾼 컬럼 순서(DisplayIndex)는 DataGrid에만 반영되고
+    /// DataTable 순서는 그대로다. RebindGrid가 DataTable 순서로 컬럼을 재생성하므로
+    /// 구조 변경(추가/삭제/이름변경/확인) 직전에 화면 순서를 DataTable에 먼저 반영해
+    /// 기존 열 위치가 흐트러지지 않게 한다.</summary>
+    private void SyncColumnOrderFromGrid()
+    {
+        if (Grid.Columns.Count == 0) return;
+        var ordered = Grid.Columns
+            .OrderBy(c => c.DisplayIndex)
+            .Select(c => c.Header?.ToString())
+            .Where(h => !string.IsNullOrEmpty(h) && _dt.Columns.Contains(h!))
+            .ToList();
+        for (int i = 0; i < ordered.Count; i++)
+            _dt.Columns[ordered[i]!]!.SetOrdinal(i);
+    }
+
     /// <summary>DataGrid는 바인딩된 DataTable의 컬럼 컬렉션 변경 시 자동으로 컬럼을
     /// 재생성하지 않는다. 컬럼 추가/삭제/이름변경 후 ItemsSource를 다시 걸어 강제 재생성.</summary>
     private void RebindGrid()
@@ -89,13 +105,28 @@ public partial class TableEditorDialog : Window
         Grid.ItemsSource = _dt.DefaultView;
     }
 
-    private void ColumnHeader_DoubleClick(object sender, MouseButtonEventArgs e)
+    private static DataGridColumnHeader? FindHeader(object? src)
     {
-        // PreviewMouseLeftButtonDown로 받으므로 더블클릭만 처리 (단일 클릭은 통과)
-        if (e.ClickCount != 2) return;
-        if (sender is not DataGridColumnHeader header) return;
+        DependencyObject? d = src as DependencyObject;
+        while (d is not null)
+        {
+            if (d is DataGridColumnHeader h) return h;
+            d = ffnotev2.Services.VisualTreeWalker.GetAnyParent(d);
+        }
+        return null;
+    }
+
+    // 컬럼 헤더 더블클릭으로 이름 변경. EventSetter+PreviewMouseLeftButtonDown 방식은
+    // CanUserReorderColumns=True에서 첫 클릭이 리오더 드래그로 마우스를 캡처해
+    // 두 번째 클릭의 ClickCount==2가 같은 헤더 핸들러에 도달하지 못해 깨졌음.
+    // DataGrid 레벨의 PreviewMouseDoubleClick(터널)로 받아 헤더를 hit-test.
+    private void Grid_PreviewMouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        var header = FindHeader(e.OriginalSource);
+        if (header is null) return;
         if (header.Column is not DataGridColumn col) return;
         e.Handled = true;
+        SyncColumnOrderFromGrid();
         var current = col.Header?.ToString() ?? string.Empty;
         var dlg = new RenameDialog(current) { Owner = this, Title = "컬럼 이름 변경" };
         if (dlg.ShowDialog() != true) return;
@@ -131,6 +162,7 @@ public partial class TableEditorDialog : Window
 
     private void AddCol_Click(object sender, RoutedEventArgs e)
     {
+        SyncColumnOrderFromGrid();
         var defaultName = $"열{_dt.Columns.Count + 1}";
         var dlg = new RenameDialog(defaultName) { Owner = this, Title = "새 컬럼 이름" };
         if (dlg.ShowDialog() != true) return;
@@ -148,6 +180,7 @@ public partial class TableEditorDialog : Window
 
     private void DeleteCol_Click(object sender, RoutedEventArgs e)
     {
+        SyncColumnOrderFromGrid();
         // 선택된 셀의 컬럼 또는 마지막 컬럼 삭제
         DataGridColumn? target = null;
         if (Grid.CurrentCell.IsValid) target = Grid.CurrentCell.Column;
@@ -169,6 +202,7 @@ public partial class TableEditorDialog : Window
     {
         Grid.CommitEdit(DataGridEditingUnit.Cell, true);
         Grid.CommitEdit(DataGridEditingUnit.Row, true);
+        SyncColumnOrderFromGrid();
         ResultMarkdown = BuildMarkdown();
         DialogResult = true;
         Close();

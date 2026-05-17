@@ -451,7 +451,8 @@ public partial class MainViewModel : ObservableObject
             CurrentNotebook = Notebooks.FirstOrDefault();
     }
 
-    public NoteItem AddTextNote(string text, double x, double y, bool autoEdit = true)
+    public NoteItem AddTextNote(string text, double x, double y, bool autoEdit = true,
+                               double? width = null, double? height = null)
     {
         if (CurrentNotebook is null) throw new InvalidOperationException("CurrentNotebook이 없습니다.");
         var note = new NoteItem
@@ -461,8 +462,8 @@ public partial class MainViewModel : ObservableObject
             Content = text,
             X = MaybeSnap(x),
             Y = MaybeSnap(y),
-            Width = 200,
-            Height = 100,
+            Width = width ?? 200,
+            Height = height ?? 100,
             IsEditing = autoEdit
         };
         note.Id = _db.AddNote(note);
@@ -471,7 +472,8 @@ public partial class MainViewModel : ObservableObject
         return note;
     }
 
-    public NoteItem AddImageNote(string imagePath, double x, double y)
+    public NoteItem AddImageNote(string imagePath, double x, double y,
+                                double? width = null, double? height = null)
     {
         if (CurrentNotebook is null) throw new InvalidOperationException("CurrentNotebook이 없습니다.");
         var note = new NoteItem
@@ -481,8 +483,8 @@ public partial class MainViewModel : ObservableObject
             Content = imagePath,
             X = MaybeSnap(x),
             Y = MaybeSnap(y),
-            Width = 400,
-            Height = 300
+            Width = width ?? 400,
+            Height = height ?? 300
         };
         note.Id = _db.AddNote(note);
         CurrentNotebook.Notes.Add(note);
@@ -490,7 +492,8 @@ public partial class MainViewModel : ObservableObject
         return note;
     }
 
-    public NoteItem AddLinkNote(string url, double x, double y)
+    public NoteItem AddLinkNote(string url, double x, double y,
+                               double? width = null, double? height = null)
     {
         if (CurrentNotebook is null) throw new InvalidOperationException("CurrentNotebook이 없습니다.");
         var note = new NoteItem
@@ -500,8 +503,8 @@ public partial class MainViewModel : ObservableObject
             Content = url,
             X = MaybeSnap(x),
             Y = MaybeSnap(y),
-            Width = 300,
-            Height = 56
+            Width = width ?? 300,
+            Height = height ?? 56
         };
         note.Id = _db.AddNote(note);
         CurrentNotebook.Notes.Add(note);
@@ -550,11 +553,16 @@ public partial class MainViewModel : ObservableObject
         App.Undo?.Push(new DeleteNoteAction(note, CurrentNotebook, _db));
     }
 
+    // 마지막으로 복사한 노트의 크기 기억용 내부 클립보드. 붙여넣기 시 같은 노트면
+    // 시스템 클립보드(텍스트/이미지엔 크기 정보가 없음) 대신 이 크기를 재적용한다.
+    private (NoteType Type, string? Content, double Width, double Height)? _clipNote;
+
     /// <summary>선택된 노트(첫 1개)를 시스템 클립보드에 복사. 텍스트/링크 → SetText, 이미지 → SetImage.</summary>
     public void CopySelectedToClipboard()
     {
         var note = SelectedNotes.FirstOrDefault();
         if (note is null) return;
+        _clipNote = (note.Type, note.Content, note.Width, note.Height);
         try
         {
             switch (note.Type)
@@ -595,7 +603,14 @@ public partial class MainViewModel : ObservableObject
             if (bmp is not null)
             {
                 var path = SaveImageToFile(bmp);
-                var note = AddImageNote(path, canvasMouseX, canvasMouseY);
+                // 직전에 복사한 게 이미지 노트면 그 크기를 그대로 재사용
+                double? iw = null, ih = null;
+                if (_clipNote is { Type: NoteType.Image } c)
+                {
+                    iw = c.Width;
+                    ih = c.Height;
+                }
+                var note = AddImageNote(path, canvasMouseX, canvasMouseY, iw, ih);
                 SelectOnly(note);
                 return;
             }
@@ -608,16 +623,24 @@ public partial class MainViewModel : ObservableObject
                 text = text?.Trim();
                 if (string.IsNullOrEmpty(text)) return;
 
+                // 직전에 복사한 노트와 내용이 같으면 그 노트의 크기를 그대로 재사용
+                double? cw = null, ch = null;
+                if (_clipNote is { } cn && cn.Content == text)
+                {
+                    cw = cn.Width;
+                    ch = cn.Height;
+                }
+
                 NoteItem note;
                 if (Uri.TryCreate(text, UriKind.Absolute, out var uri)
                     && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
                 {
-                    note = AddLinkNote(text, canvasMouseX, canvasMouseY);
+                    note = AddLinkNote(text, canvasMouseX, canvasMouseY, cw, ch);
                 }
                 else
                 {
                     // 붙여넣기로 만든 텍스트 노트는 편집 모드 아님 — 선택 상태로만 시작
-                    note = AddTextNote(text, canvasMouseX, canvasMouseY, autoEdit: false);
+                    note = AddTextNote(text, canvasMouseX, canvasMouseY, autoEdit: false, width: cw, height: ch);
                 }
                 SelectOnly(note);
                 return;

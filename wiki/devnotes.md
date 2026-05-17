@@ -1,5 +1,13 @@
-<!-- 최종 수정: 2026-05-15 -->
+<!-- 최종 수정: 2026-05-17 -->
 # 개발 노트
+
+## 최근 변경 (2026-05-17, 링크 클릭 + 복붙 크기 유지 + 표 편집 열 순서/헤더 더블클릭)
+
+- **표 편집 컬럼 헤더 더블클릭 이름 변경 안 되던 버그 수정**: `EventSetter`(`DataGridColumnHeader.PreviewMouseLeftButtonDown`) + `ClickCount==2` 방식은 `CanUserReorderColumns=True`에서 첫 클릭이 컬럼 리오더 드래그로 마우스를 캡처해 두 번째 클릭의 `ClickCount==2`가 같은 헤더 핸들러에 도달 못 함. DataGrid 레벨 `PreviewMouseDoubleClick`(터널) + `FindHeader`(OriginalSource에서 `VisualTreeWalker.GetAnyParent`로 `DataGridColumnHeader` 탐색)로 교체. XAML의 `DataGrid.Resources` 헤더 Style/EventSetter, `ColumnHeaderStyle` 제거.
+- **표 편집 확인 시 컬럼 순서 미반영 수정**: `Confirm_Click`에서 `BuildMarkdown` 전에 `SyncColumnOrderFromGrid()` 호출 → 사용자가 드래그로 바꾼 화면 순서가 `_dt` 순서에 반영되어 마크다운이 그 순서로 출력됨.
+- **표 편집(Ctrl+E) +열 시 기존 열 위치 흐트러짐 수정**: `CanUserReorderColumns=True`로 드래그한 컬럼 순서는 DataGrid의 `DisplayIndex`에만 반영되고 `DataTable` 순서는 그대로라, `RebindGrid`가 DataTable 순서로 컬럼을 재생성하며 사용자가 바꾼 순서가 사라짐. `SyncColumnOrderFromGrid()` 추가 — 현재 그리드 DisplayIndex 순서대로 `DataColumn.SetOrdinal`로 `_dt` 컬럼 순서를 먼저 맞춤. 구조 변경 직전(`AddCol_Click`/`DeleteCol_Click`/`ColumnHeader_DoubleClick`/`Confirm_Click`)에 호출 → 화면 순서가 곧 DataTable 순서가 되어 재생성 시 위치 보존 + 새 열은 맨 끝에 추가. `BuildMarkdown`도 화면 순서대로 출력됨(확인 시에도 sync).
+- **복사·붙여넣기 시 노트 크기 유지**: 기존엔 Ctrl+C가 내용만 시스템 클립보드에 넣고 Ctrl+V가 기본 크기(텍스트 200×100 등)로 새 노트를 생성 → 원본 크기 손실. `MainViewModel._clipNote`(Type/Content/Width/Height 튜플) 내부 클립보드 추가 — `CopySelectedToClipboard`에서 복사 노트 스냅샷 저장, `PasteFromClipboard`에서 텍스트/링크는 Content 일치, 이미지는 Type==Image일 때 저장된 크기를 재적용. `AddTextNote`/`AddImageNote`/`AddLinkNote`에 `double? width=null, double? height=null` 선택 파라미터 추가(기본값이면 기존 동작 유지).
+- **노트 본문 링크 클릭 안 되던 버그 수정**: 표시 모드(`FlowDocumentScrollViewer`)의 `TextDisplay_MouseLeftButtonDown`는 tunneling `PreviewMouseLeftButtonDown` 핸들러로 텍스트 선택 차단을 위해 무조건 `e.Handled=true`를 세팅했음. preview는 부모→자식 순이라 내부 `Hyperlink`가 mouse-down을 못 받아 `RequestNavigate`가 발화 안 됨 → 일반 클릭·Ctrl+클릭 모두 링크가 안 열림. 수정: `FindHyperlink(e.OriginalSource)`(`VisualTreeWalker.GetAnyParent`로 비-Visual Run/Span 부모까지 거슬러 올라가 `Hyperlink` 탐색)로 링크 클릭이면 `Process.Start`(`UseShellExecute=true`)로 직접 URL 열고 `e.Handled=true; return`. 링크가 아니면 기존 selection 차단 로직 유지.
 
 ## 최근 변경 (2026-05-15, 노트북 드래그 정렬 + 가장자리 자동 스크롤 + 미니맵 + 표 편집 버그 수정)
 

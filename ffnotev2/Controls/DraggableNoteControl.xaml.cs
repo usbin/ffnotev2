@@ -299,8 +299,40 @@ public partial class DraggableNoteControl : UserControl
         return false;
     }
 
+    // OriginalSource(FlowDocument 내부 Run/Span 등)에서 부모로 거슬러 올라가 Hyperlink를 찾음.
+    private static Hyperlink? FindHyperlink(object? source)
+    {
+        DependencyObject? d = source as DependencyObject;
+        while (d is not null)
+        {
+            if (d is Hyperlink hl) return hl;
+            d = VisualTreeWalker.GetAnyParent(d);
+        }
+        return null;
+    }
+
     private void TextDisplay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        // 링크 클릭: preview 단계에서 e.Handled=true가 Hyperlink의 RequestNavigate를 막으므로
+        // 여기서 직접 URL을 연다(일반 클릭·Ctrl+클릭 모두 동작).
+        if (FindHyperlink(e.OriginalSource) is { NavigateUri: { } uri })
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = uri.AbsoluteUri,
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                // 잘못된 URL은 조용히 무시
+            }
+            e.Handled = true;
+            return;
+        }
+
         // FlowDocumentScrollViewer 자체 selection 시작 차단 — 단순 클릭에서 마지막 글자가
         // 자동 선택되어 파란 하이라이트 잔존하는 문제 회피. 본문 드래그/노트 선택은 부모
         // UserControl_PreviewMouseLeftButtonDown(이미 fire됨)이 처리하므로 자식 라우팅 차단해도 OK.
