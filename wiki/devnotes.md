@@ -1,6 +1,10 @@
 <!-- 최종 수정: 2026-05-17 -->
 # 개발 노트
 
+## 최근 변경 (2026-05-17, 표 편집 −열 대상 선택)
+
+- **표 편집(Ctrl+E)에서 삭제할 열을 선택할 방법이 없던 문제 수정**: 기존 `DeleteCol_Click`은 `Grid.CurrentCell`이 없으면 항상 마지막 열로 폴백 → 셀 클릭이 어렵거나 의도와 다른 열 삭제. `_targetCol` 필드 + `Grid_PreviewMouseLeftButtonDown`(헤더 hit-test 시 `SelectColumn` 호출, `e.Handled` 미설정으로 리오더/더블클릭 공존) 추가. `SelectColumn`은 그 열 전체 셀을 `Grid.SelectedCells`에 넣어 시각 강조 + `_targetCol` 기억. `DeleteCol_Click`은 `_targetCol → CurrentCell.Column → 마지막` 순으로 대상 결정. `RebindGrid`에서 `_targetCol=null`(컬럼 재생성 무효화). XAML 안내 문구/툴팁 갱신.
+
 ## 최근 변경 (2026-05-17, 편집 모드 표 그리드 클립)
 
 - **편집 모드 표 아웃라인이 노트 영역 밖으로 삐져나오던 버그 수정**: `TableGridAdorner`가 `AdornerLayer`에 그려지는데 layer는 기본적으로 adorned 요소(에디터) 경계로 클립하지 않음. 표가 스크롤로 가려지거나 노트보다 크면 `GetRectFromCharacterIndex`가 에디터 밖 좌표를 반환해 그리드 선이 노트 바깥까지 그려짐. `OnRender`에서 `dc.PushClip(에디터 RenderSize 사각형)` 후 그리도록 `RenderGrid`로 분리.

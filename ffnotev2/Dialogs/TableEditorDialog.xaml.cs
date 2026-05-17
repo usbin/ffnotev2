@@ -101,8 +101,36 @@ public partial class TableEditorDialog : Window
     {
         Grid.CommitEdit(DataGridEditingUnit.Cell, true);
         Grid.CommitEdit(DataGridEditingUnit.Row, true);
+        _targetCol = null;  // 재생성으로 기존 컬럼 객체 무효
         Grid.ItemsSource = null;
         Grid.ItemsSource = _dt.DefaultView;
+    }
+
+    // −열 삭제 대상 컬럼. 헤더 클릭으로 지정. RebindGrid 시 컬럼 객체가 새로 생성되므로 무효화.
+    private DataGridColumn? _targetCol;
+
+    // 헤더 단일 클릭 → 그 열 전체 선택 + 삭제 대상으로 기억. e.Handled을 세팅하지 않아
+    // 컬럼 리오더 드래그/더블클릭(이름 변경)과 공존한다.
+    private void Grid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (FindHeader(e.OriginalSource)?.Column is DataGridColumn col)
+            SelectColumn(col);
+    }
+
+    private void SelectColumn(DataGridColumn col)
+    {
+        _targetCol = col;
+        Grid.SelectedCells.Clear();
+        DataGridCellInfo firstCell = default;
+        bool any = false;
+        foreach (var item in Grid.Items)
+        {
+            if (item is not System.Data.DataRowView) continue;
+            var ci = new DataGridCellInfo(item, col);
+            Grid.SelectedCells.Add(ci);
+            if (!any) { firstCell = ci; any = true; }
+        }
+        if (any) Grid.CurrentCell = firstCell;
     }
 
     private static DataGridColumnHeader? FindHeader(object? src)
@@ -181,9 +209,9 @@ public partial class TableEditorDialog : Window
     private void DeleteCol_Click(object sender, RoutedEventArgs e)
     {
         SyncColumnOrderFromGrid();
-        // 선택된 셀의 컬럼 또는 마지막 컬럼 삭제
-        DataGridColumn? target = null;
-        if (Grid.CurrentCell.IsValid) target = Grid.CurrentCell.Column;
+        // 헤더 클릭으로 지정한 열 → 현재 셀의 열 → (지정 없으면) 마지막 열 순으로 대상 결정
+        DataGridColumn? target = _targetCol;
+        if (target is null && Grid.CurrentCell.IsValid) target = Grid.CurrentCell.Column;
         if (target is null && Grid.Columns.Count > 0) target = Grid.Columns[^1];
         if (target is null) return;
         var name = target.Header?.ToString();
