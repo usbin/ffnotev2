@@ -5,6 +5,10 @@
 
 - **표 편집(Ctrl+E)에서 삭제할 열을 선택할 방법이 없던 문제 수정**: 기존 `DeleteCol_Click`은 `Grid.CurrentCell`이 없으면 항상 마지막 열로 폴백 → 셀 클릭이 어렵거나 의도와 다른 열 삭제. `_targetCol` 필드 + `Grid_PreviewMouseLeftButtonDown`(헤더 hit-test 시 `SelectColumn` 호출, `e.Handled` 미설정으로 리오더/더블클릭 공존) 추가. `SelectColumn`은 그 열 전체 셀을 `Grid.SelectedCells`에 넣어 시각 강조 + `_targetCol` 기억. `DeleteCol_Click`은 `_targetCol → CurrentCell.Column → 마지막` 순으로 대상 결정. `RebindGrid`에서 `_targetCol=null`(컬럼 재생성 무효화). XAML 안내 문구/툴팁 갱신.
 
+## 최근 변경 (2026-05-17, 편집 중 Shift+클릭 텍스트 범위 선택 복구)
+
+- **편집 중 클릭 후 Shift+클릭 범위 선택 안 되던 버그 수정**: `UserControl_PreviewMouseLeftButtonDown`(터널링 preview)이 모든 Shift+클릭을 노트 선택 토글로 가로채고 `e.Handled=true` → 편집 중 TextBox가 네이티브 범위 선택을 못 함. Shift 분기 맨 앞에 `if (IsInsideTextBox(e.OriginalSource)) return;` 추가 — 편집 TextBox 내부 Shift+클릭은 가로채지 않아 TextBox가 클릭~Shift+클릭 사이를 정상 선택. 비편집/본문 외 Shift+클릭의 노트 선택 토글은 그대로.
+
 ## 최근 변경 (2026-05-17, 표 그리드를 어도너→트리 내부 오버레이로 전환)
 
 - **표 그리드가 노트 드래그 시 안 따라오고 노트 밖까지 보이던 버그 수정**: `TableGridAdorner`가 `Adorner`라 캔버스 위 공용 `AdornerLayer`에 올라감 → 타이틀바 드래그/Pan·Zoom으로 노트가 이동해도 어도너가 제자리에 남고 노트 비주얼 트리 밖이라 클립도 안 됨. `Adorner` → `FrameworkElement`로 변경하고 `EditorContainer`의 TextBox와 **같은 그리드 셀**에 자식으로 추가(`AttachTableAdorner`). 노트 트리 내부 요소라 노트 변환·클립을 그대로 따라가 드래그/줌에서 정확히 붙어 다니고 노트 밖으로 새지 않음. `ClipToBounds=true` + `OnRender` 내 RenderSize 클립 2중 방어. `IsHitTestVisible=false`로 입력 무관 동일. (이전 PushClip 클립만으로는 어도너 transform이 stale일 때 무효라 근본 해결 안 됐음.)

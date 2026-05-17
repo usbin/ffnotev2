@@ -585,7 +585,10 @@ public partial class DraggableNoteControl : UserControl
         var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
         if (shift)
         {
-            // Shift+클릭: 토글, 드래그/편집 차단
+            // 편집 중인 TextBox 안에서의 Shift+클릭은 텍스트 범위 선택이므로 가로채지 않음
+            // (preview tunneling이라 여기서 Handled하면 TextBox가 범위 선택을 못 함).
+            if (IsInsideTextBox(e.OriginalSource)) return;
+            // 그 외 Shift+클릭: 노트 선택 토글, 드래그/편집 차단
             Item.IsSelected = !Item.IsSelected;
             e.Handled = true;
             return;
