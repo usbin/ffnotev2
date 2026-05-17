@@ -1,6 +1,10 @@
 <!-- 최종 수정: 2026-05-17 -->
 # 개발 노트
 
+## 최근 변경 (2026-05-17, 편집 모드 표 그리드 클립)
+
+- **편집 모드 표 아웃라인이 노트 영역 밖으로 삐져나오던 버그 수정**: `TableGridAdorner`가 `AdornerLayer`에 그려지는데 layer는 기본적으로 adorned 요소(에디터) 경계로 클립하지 않음. 표가 스크롤로 가려지거나 노트보다 크면 `GetRectFromCharacterIndex`가 에디터 밖 좌표를 반환해 그리드 선이 노트 바깥까지 그려짐. `OnRender`에서 `dc.PushClip(에디터 RenderSize 사각형)` 후 그리도록 `RenderGrid`로 분리.
+
 ## 최근 변경 (2026-05-17, 링크 클릭 + 복붙 크기 유지 + 표 편집 열 순서/헤더 더블클릭)
 
 - **표 편집 컬럼 헤더 더블클릭 이름 변경 안 되던 버그 수정**: `EventSetter`(`DataGridColumnHeader.PreviewMouseLeftButtonDown`) + `ClickCount==2` 방식은 `CanUserReorderColumns=True`에서 첫 클릭이 컬럼 리오더 드래그로 마우스를 캡처해 두 번째 클릭의 `ClickCount==2`가 같은 헤더 핸들러에 도달 못 함. DataGrid 레벨 `PreviewMouseDoubleClick`(터널) + `FindHeader`(OriginalSource에서 `VisualTreeWalker.GetAnyParent`로 `DataGridColumnHeader` 탐색)로 교체. XAML의 `DataGrid.Resources` 헤더 Style/EventSetter, `ColumnHeaderStyle` 제거.

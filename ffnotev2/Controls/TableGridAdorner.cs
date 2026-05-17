@@ -35,6 +35,24 @@ public class TableGridAdorner : Adorner
         var t = _editor.Text;
         if (string.IsNullOrEmpty(t)) return;
 
+        // AdornerLayer는 기본적으로 adorned 요소 경계로 클립하지 않는다. 표가 스크롤로
+        // 가려졌거나 노트 영역보다 크면 GetRectFromCharacterIndex가 에디터 밖 좌표를
+        // 반환해 그리드 선이 노트 바깥까지 삐져나온다. 에디터 가시 영역으로 클립.
+        var clip = new RectangleGeometry(new Rect(new Point(0, 0), _editor.RenderSize));
+        clip.Freeze();
+        dc.PushClip(clip);
+        try
+        {
+            RenderGrid(dc, t);
+        }
+        finally
+        {
+            dc.Pop();
+        }
+    }
+
+    private void RenderGrid(DrawingContext dc, string t)
+    {
         // 각 줄 시작 char index 캐시
         var lineStarts = new List<int> { 0 };
         for (int i = 0; i < t.Length; i++)
