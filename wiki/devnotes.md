@@ -5,9 +5,9 @@
 
 - **표 편집(Ctrl+E)에서 삭제할 열을 선택할 방법이 없던 문제 수정**: 기존 `DeleteCol_Click`은 `Grid.CurrentCell`이 없으면 항상 마지막 열로 폴백 → 셀 클릭이 어렵거나 의도와 다른 열 삭제. `_targetCol` 필드 + `Grid_PreviewMouseLeftButtonDown`(헤더 hit-test 시 `SelectColumn` 호출, `e.Handled` 미설정으로 리오더/더블클릭 공존) 추가. `SelectColumn`은 그 열 전체 셀을 `Grid.SelectedCells`에 넣어 시각 강조 + `_targetCol` 기억. `DeleteCol_Click`은 `_targetCol → CurrentCell.Column → 마지막` 순으로 대상 결정. `RebindGrid`에서 `_targetCol=null`(컬럼 재생성 무효화). XAML 안내 문구/툴팁 갱신.
 
-## 최근 변경 (2026-05-17, 편집 모드 표 그리드 클립)
+## 최근 변경 (2026-05-17, 표 그리드를 어도너→트리 내부 오버레이로 전환)
 
-- **편집 모드 표 아웃라인이 노트 영역 밖으로 삐져나오던 버그 수정**: `TableGridAdorner`가 `AdornerLayer`에 그려지는데 layer는 기본적으로 adorned 요소(에디터) 경계로 클립하지 않음. 표가 스크롤로 가려지거나 노트보다 크면 `GetRectFromCharacterIndex`가 에디터 밖 좌표를 반환해 그리드 선이 노트 바깥까지 그려짐. `OnRender`에서 `dc.PushClip(에디터 RenderSize 사각형)` 후 그리도록 `RenderGrid`로 분리.
+- **표 그리드가 노트 드래그 시 안 따라오고 노트 밖까지 보이던 버그 수정**: `TableGridAdorner`가 `Adorner`라 캔버스 위 공용 `AdornerLayer`에 올라감 → 타이틀바 드래그/Pan·Zoom으로 노트가 이동해도 어도너가 제자리에 남고 노트 비주얼 트리 밖이라 클립도 안 됨. `Adorner` → `FrameworkElement`로 변경하고 `EditorContainer`의 TextBox와 **같은 그리드 셀**에 자식으로 추가(`AttachTableAdorner`). 노트 트리 내부 요소라 노트 변환·클립을 그대로 따라가 드래그/줌에서 정확히 붙어 다니고 노트 밖으로 새지 않음. `ClipToBounds=true` + `OnRender` 내 RenderSize 클립 2중 방어. `IsHitTestVisible=false`로 입력 무관 동일. (이전 PushClip 클립만으로는 어도너 transform이 stale일 때 무효라 근본 해결 안 됐음.)
 
 ## 최근 변경 (2026-05-17, 링크 클릭 + 복붙 크기 유지 + 표 편집 열 순서/헤더 더블클릭)
 

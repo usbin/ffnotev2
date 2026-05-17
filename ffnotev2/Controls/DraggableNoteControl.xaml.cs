@@ -365,17 +365,17 @@ public partial class DraggableNoteControl : UserControl
     private void AttachTableAdorner()
     {
         if (_tableAdorner is not null) return;
-        var layer = AdornerLayer.GetAdornerLayer(TextEditor);
-        if (layer is null) return;
+        // AdornerLayer(캔버스 위 공용 레이어) 대신 노트 트리 안 — TextBox와 같은 그리드 셀에
+        // 겹쳐 둔다. 노트 드래그/Pan·Zoom 시 노트 변환·클립을 그대로 따라가 밖으로 새지 않음.
         _tableAdorner = new TableGridAdorner(TextEditor);
-        layer.Add(_tableAdorner);
+        Grid.SetColumn(_tableAdorner, Grid.GetColumn(TextEditor));
+        EditorContainer.Children.Add(_tableAdorner);
     }
 
     private void DetachTableAdorner()
     {
         if (_tableAdorner is null) return;
-        var layer = AdornerLayer.GetAdornerLayer(TextEditor);
-        layer?.Remove(_tableAdorner);
+        EditorContainer.Children.Remove(_tableAdorner);
         _tableAdorner = null;
     }
 

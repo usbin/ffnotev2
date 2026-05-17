@@ -1,9 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
 using System.Windows.Media;
 using Pen = System.Windows.Media.Pen;
-using Brush = System.Windows.Media.Brush;
 using Point = System.Windows.Point;
 using Color = System.Windows.Media.Color;
 
@@ -14,16 +12,22 @@ namespace ffnotev2.Controls;
 /// 입력 자체에는 관여하지 않음(IsHitTestVisible=false). 한글 IME / undo / 캐럿 모두 무관.
 /// 표 행은 양 끝이 '|'이고 가운데에 '|'가 1개 이상 있는 줄로 판정.
 /// 각 '|'의 X 좌표는 TextBox.GetRectFromCharacterIndex로 정확히 얻어 monospace/가변폭 모두에서 동작.
+///
+/// AdornerLayer 대신 노트 비주얼 트리 안(EditorContainer의 TextBox와 같은 셀)에 직접 두는
+/// 오버레이. AdornerLayer는 캔버스 위 공용 레이어라 노트 드래그/Pan·Zoom 시 어도너가
+/// 따라오지 못하고 노트 밖까지 보이던 문제 → 트리 내부 요소면 노트 변환·클립을 그대로 따른다.
+/// TextBox와 동일한 그리드 셀을 차지하므로 GetRectFromCharacterIndex 좌표가 그대로 정렬됨.
 /// </summary>
-public class TableGridAdorner : Adorner
+public class TableGridAdorner : FrameworkElement
 {
     private readonly TextBox _editor;
     private readonly Pen _pen;
 
-    public TableGridAdorner(TextBox editor) : base(editor)
+    public TableGridAdorner(TextBox editor)
     {
         _editor = editor;
         IsHitTestVisible = false;
+        ClipToBounds = true;
         var brush = new SolidColorBrush(Color.FromArgb(0x88, 0x77, 0x77, 0x77));
         brush.Freeze();
         _pen = new Pen(brush, 1);
@@ -35,10 +39,9 @@ public class TableGridAdorner : Adorner
         var t = _editor.Text;
         if (string.IsNullOrEmpty(t)) return;
 
-        // AdornerLayer는 기본적으로 adorned 요소 경계로 클립하지 않는다. 표가 스크롤로
-        // 가려졌거나 노트 영역보다 크면 GetRectFromCharacterIndex가 에디터 밖 좌표를
-        // 반환해 그리드 선이 노트 바깥까지 삐져나온다. 에디터 가시 영역으로 클립.
-        var clip = new RectangleGeometry(new Rect(new Point(0, 0), _editor.RenderSize));
+        // ClipToBounds=true가 1차 방어지만, 스크롤로 가려진 표 좌표가 음수로 나올 때를
+        // 위해 자신의 RenderSize로 한 번 더 명시 클립(노트 밖으로 새지 않도록).
+        var clip = new RectangleGeometry(new Rect(new Point(0, 0), RenderSize));
         clip.Freeze();
         dc.PushClip(clip);
         try
