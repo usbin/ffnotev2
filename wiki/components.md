@@ -1,4 +1,4 @@
-<!-- 최종 수정: 2026-05-15 -->
+<!-- 최종 수정: 2026-05-17 -->
 # 주요 컴포넌트
 
 ## 모델
@@ -60,7 +60,6 @@
 | 파일 | 설명 |
 |------|------|
 | Controls/InsertionLineAdorner | 사이드바 노트북 드래그 재정렬 시 항목 사이 가로 삽입선. `SetY(y)`로 ListBox 기준 Y 갱신 + `OnRender` 가로선. `IsHitTestVisible=false` |
-| Controls/TableGridAdorner | 편집 모드 TextBox 위에 마크다운 표 셀 그리드(세로선·가로선) 오버레이. `IsHitTestVisible=false`라 입력에 무관. 각 표 행의 `\|` 위치를 `TextBox.GetRectFromCharacterIndex`로 얻어 세로선 + 각 행 상단·표 하단에 가로선. `DraggableNoteControl`이 BeginEdit 시 부착, LostFocus 시 해제, TextChanged/SizeChanged/ScrollChanged 시 `InvalidateVisual` |
 
 ## 단축키
 

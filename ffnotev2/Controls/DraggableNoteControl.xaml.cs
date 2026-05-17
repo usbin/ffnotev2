@@ -16,7 +16,6 @@ namespace ffnotev2.Controls;
 
 public partial class DraggableNoteControl : UserControl
 {
-    private TableGridAdorner? _tableAdorner;
     private bool _isDragging;
     private Point _dragStart;
     // 일괄 드래그를 위해 선택된 모든 노트의 시작 좌표 캡처
@@ -358,25 +357,7 @@ public partial class DraggableNoteControl : UserControl
             TextEditor.CaretIndex = TextEditor.Text.Length;
             HookEditorScroll();
             UpdateLineNumbers();  // TextBox measure 끝난 후 LineCount 정확
-            AttachTableAdorner();
         }), DispatcherPriority.Loaded);
-    }
-
-    private void AttachTableAdorner()
-    {
-        if (_tableAdorner is not null) return;
-        // AdornerLayer(캔버스 위 공용 레이어) 대신 노트 트리 안 — TextBox와 같은 그리드 셀에
-        // 겹쳐 둔다. 노트 드래그/Pan·Zoom 시 노트 변환·클립을 그대로 따라가 밖으로 새지 않음.
-        _tableAdorner = new TableGridAdorner(TextEditor);
-        Grid.SetColumn(_tableAdorner, Grid.GetColumn(TextEditor));
-        EditorContainer.Children.Add(_tableAdorner);
-    }
-
-    private void DetachTableAdorner()
-    {
-        if (_tableAdorner is null) return;
-        EditorContainer.Children.Remove(_tableAdorner);
-        _tableAdorner = null;
     }
 
     private void SyncLineNumbersVisibility()
@@ -447,9 +428,7 @@ public partial class DraggableNoteControl : UserControl
     {
         Dispatcher.BeginInvoke(new Action(() =>
         {
-            UpdateLineNumbers();
-            _tableAdorner?.InvalidateVisual();
-        }), DispatcherPriority.Loaded);
+            UpdateLineNumbers();        }), DispatcherPriority.Loaded);
         // 자동 정렬은 매 키 X — 사용자 입력 중 다른 셀이 흔들리는 게 거슬림.
         // Tab/Enter/편집 종료 시점에만 명시적 트리거.
     }
@@ -517,9 +496,7 @@ public partial class DraggableNoteControl : UserControl
     {
         Dispatcher.BeginInvoke(new Action(() =>
         {
-            UpdateLineNumbers();
-            _tableAdorner?.InvalidateVisual();
-        }), DispatcherPriority.Loaded);
+            UpdateLineNumbers();        }), DispatcherPriority.Loaded);
     }
 
     private ScrollViewer? _editorScrollViewer;
@@ -532,9 +509,7 @@ public partial class DraggableNoteControl : UserControl
         // 스크롤 시 줄 번호·표 그리드 위치도 다시 그림 (GetRectFromCharacterIndex는 스크롤된 visual 좌표 반환)
         sv.ScrollChanged += (_, _) =>
         {
-            UpdateLineNumbers();
-            _tableAdorner?.InvalidateVisual();
-        };
+            UpdateLineNumbers();        };
     }
 
     private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
@@ -659,7 +634,6 @@ public partial class DraggableNoteControl : UserControl
 
     private void TextEditor_LostFocus(object sender, RoutedEventArgs e)
     {
-        DetachTableAdorner();
         // 편집 종료(노트 저장) 시점에만 모든 마크다운 표를 일괄 정렬
         AlignAllTablesInText();
         EditorContainer.Visibility = Visibility.Collapsed;
