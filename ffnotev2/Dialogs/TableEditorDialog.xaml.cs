@@ -180,11 +180,26 @@ public partial class TableEditorDialog : Window
 
     private void DeleteRow_Click(object sender, RoutedEventArgs e)
     {
-        var rows = Grid.SelectedItems.OfType<DataRowView>().ToList();
-        if (rows.Count == 0 && Grid.SelectedItem is DataRowView one) rows.Add(one);
+        Grid.CommitEdit(DataGridEditingUnit.Cell, true);
+        Grid.CommitEdit(DataGridEditingUnit.Row, true);
+
+        // SelectionUnit=CellOrRowHeader라 셀만 클릭하면 SelectedItems가 비고
+        // SelectedCells만 채워진다. 행 헤더/셀/현재 셀 모두에서 행을 모은다.
+        var rows = new List<DataRowView>();
+        void Add(object? item)
+        {
+            if (item is DataRowView rv && !rows.Contains(rv)) rows.Add(rv);
+        }
+
+        foreach (var item in Grid.SelectedItems) Add(item);
+        foreach (var cell in Grid.SelectedCells) Add(cell.Item);
+        if (rows.Count == 0) Add(Grid.CurrentCell.Item);
+
         foreach (var rv in rows)
         {
-            if (rv.Row.RowState != DataRowState.Detached) _dt.Rows.Remove(rv.Row);
+            if (rv.Row.RowState != DataRowState.Detached
+                && rv.Row.RowState != DataRowState.Deleted)
+                _dt.Rows.Remove(rv.Row);
         }
     }
 

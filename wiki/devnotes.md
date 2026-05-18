@@ -1,5 +1,9 @@
-<!-- 최종 수정: 2026-05-17 -->
+<!-- 최종 수정: 2026-05-18 -->
 # 개발 노트
+
+## 최근 변경 (2026-05-18, 표 편집 −행 삭제 미동작 수정)
+
+- **표 편집(Ctrl+E)에서 행 선택 후 −행 클릭 시 삭제되지 않던 문제 수정**: `DataGrid.SelectionUnit="CellOrRowHeader"`라 셀만 클릭하면 `SelectedItems`/`SelectedItem`이 비고 `SelectedCells`만 채워지는데, 기존 `DeleteRow_Click`은 `SelectedItems`/`SelectedItem`에서만 행을 모아 항상 빈 목록 → 삭제 무동작. `SelectedItems` + `SelectedCells`의 `Item` + (둘 다 비면) `CurrentCell.Item`에서 `DataRowView`를 중복 제거하며 수집하도록 변경. 삭제 전 `CommitEdit`, `Deleted` 상태 행 스킵 추가.
 
 ## 최근 변경 (2026-05-17, 표 편집 −열 대상 선택)
 
