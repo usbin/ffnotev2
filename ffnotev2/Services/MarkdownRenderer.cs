@@ -55,12 +55,42 @@ public static class MarkdownRenderer
         if (string.IsNullOrEmpty(markdown)) return doc;
 
         var parsed = Markdown.Parse(markdown, Pipeline);
+
+        // 마크다운 파서는 단락 사이 연속 빈 줄을 모두 하나의 구분자로 소비해
+        // 빈 줄 개수 정보가 AST에서 사라진다. 평문 친화(soft break = 줄바꿈)와 일관되게,
+        // 원본 텍스트에서 블록 사이 빈 줄 수를 직접 세어 그만큼 상단 여백으로 보존한다.
+        double blankLineHeight = fontSize * 1.3;  // soft break 한 줄과 유사한 높이
+        int prevEndLine = -1;
         foreach (var block in parsed)
         {
             var converted = ConvertBlock(block, fontSize, imageBaseDir);
-            if (converted is not null) doc.Blocks.Add(converted);
+            if (converted is null) continue;
+
+            int startLine = LineOfOffset(markdown, block.Span.Start);
+            if (prevEndLine >= 0)
+            {
+                int blanks = startLine - prevEndLine - 1;
+                if (blanks > 0)
+                {
+                    var m = converted.Margin;
+                    converted.Margin = new Thickness(m.Left, m.Top + blanks * blankLineHeight, m.Right, m.Bottom);
+                }
+            }
+            prevEndLine = LineOfOffset(markdown, block.Span.End);
+            doc.Blocks.Add(converted);
         }
         return doc;
+    }
+
+    /// <summary>원본 텍스트에서 주어진 문자 오프셋이 속한 줄 번호(0-based) = 그 앞의 '\n' 개수.</summary>
+    private static int LineOfOffset(string text, int offset)
+    {
+        if (offset < 0) offset = 0;
+        if (offset > text.Length) offset = text.Length;
+        int line = 0;
+        for (int i = 0; i < offset; i++)
+            if (text[i] == '\n') line++;
+        return line;
     }
 
     private static System.Windows.Documents.Block? ConvertBlock(Markdig.Syntax.Block block, double baseFontSize, string imageBaseDir)
@@ -510,6 +540,16 @@ public static class MarkdownRenderer
                 // 평문 노트 호환: soft/hard 구분 없이 줄바꿈 보존
                 target.Add(new LineBreak());
                 break;
+
+            case HtmlInline html:
+                {
+                    // 표 셀 내부 등 Enter를 못 쓰는 곳을 위한 명시적 줄바꿈. <br>, <br/>, <br /> 허용.
+                    var tag = (html.Tag ?? string.Empty).Replace(" ", string.Empty).ToLowerInvariant();
+                    if (tag is "<br>" or "<br/>")
+                        target.Add(new LineBreak());
+                    // 그 외 HTML 태그는 표시하지 않음(무시)
+                    break;
+                }
 
             case CodeInline code:
                 target.Add(new Run(code.Content)

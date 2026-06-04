@@ -1,4 +1,4 @@
-<!-- 최종 수정: 2026-05-17 -->
+<!-- 최종 수정: 2026-06-04 -->
 # 주요 컴포넌트
 
 ## 모델
@@ -19,7 +19,7 @@
 | Services/GameDetectionService.cs | `GameDetectionService` | `Start()` — 3초 폴링; `GetRunningWindowedProcesses()` — 창 있는 프로세스 목록 반환 |
 | Services/HotkeyService.cs | `HotkeyService` | `Initialize(Window)`, `Register(modifiers, vk, callback)`, `UnregisterAll()` — Win32 RegisterHotKey 래퍼 (LibraryImport source-generated P/Invoke) |
 | Services/SettingsService.cs | `SettingsService` | `%APPDATA%\ffnotev2\settings.json` 로드/저장. `AppSettings` 노출. `Save()` 호출 시 `SettingsChanged` 이벤트 — 노트 컨트롤들이 구독해 폰트 변경을 즉시 반영 |
-| Services/MarkdownRenderer.cs | `MarkdownRenderer` (static) | `Render(markdown, fontFamily, fontSize, imageBaseDir)` → `FlowDocument`. Markdig AST를 H1~H6/리스트/코드블록/이미지 임베드/링크/강조/**파이프 테이블**로 변환. soft line break도 줄바꿈으로 처리해 평문 노트 호환. 이모지 codepoint(U+1F300~U+1FAFF, U+2600~U+27BF 등)는 `Emoji.Wpf.EmojiInline`(컬러 Twemoji)으로 분할 — ZWJ/skin tone modifier/variation selector를 묶어 한 inline으로. 파이프라인에 `UsePipeTables()` 활성, `BuildTable`이 Markdig `Table` → WPF `Table`/`TableRowGroup`/`TableRow`/`TableCell` 매핑(헤더 굵게 + #3A3A3A 배경, 본문 행 하단 1px #333 가로선, 컬럼 정렬은 `ColumnDefinitions.Alignment` → `TextAlignment`) |
+| Services/MarkdownRenderer.cs | `MarkdownRenderer` (static) | `Render(markdown, fontFamily, fontSize, imageBaseDir)` → `FlowDocument`. Markdig AST를 H1~H6/리스트/코드블록/이미지 임베드/링크/강조/**파이프 테이블**로 변환. soft line break도 줄바꿈으로 처리해 평문 노트 호환. **단락 사이 원본 빈 줄 수(`block.SourceSpan`+`LineOfOffset` 헬퍼)만큼 `Margin.Top`에 `빈 줄 수×fontSize×1.3` 추가해 표시 모드에서도 입력한 빈 줄 보존**. `<br>`/`<br/>`/`<br />`는 `AppendInline`의 `HtmlInline` 분기로 `LineBreak` 변환(표 셀 내부 등 Enter 불가 영역의 명시 줄바꿈), 그 외 HTML 태그는 무시. 이모지 codepoint(U+1F300~U+1FAFF, U+2600~U+27BF 등)는 `Emoji.Wpf.EmojiInline`(컬러 Twemoji)으로 분할 — ZWJ/skin tone modifier/variation selector를 묶어 한 inline으로. 파이프라인에 `UsePipeTables()` 활성, `BuildTable`이 Markdig `Table` → WPF `Table`/`TableRowGroup`/`TableRow`/`TableCell` 매핑(헤더 굵게 + #3A3A3A 배경, 본문 행 하단 1px #333 가로선, 컬럼 정렬은 `ColumnDefinitions.Alignment` → `TextAlignment`) |
 | Services/QueryEngine.cs | `QueryEngine` | 모든 텍스트 노트의 마크다운 표를 메모리 SQLite DB의 동적 테이블로 매핑. `Rebuild(notes)` — 노트 콘텐츠 스캔해 헤딩(`# 이름`) 직후 표 발견 시 헤딩 텍스트를 테이블 이름으로 `CREATE TABLE ... AS` 생성, 헤더 셀을 컬럼명으로(quoted identifier로 한글 가능), 데이터 행 INSERT. `Execute(sql)` → `(Columns, Rows, Error)`. 식별자는 모두 `"..."` quoted. 같은 이름 테이블 중복은 첫 번째만 적용. `Disposable` |
 | Services/UpdateService.cs | `UpdateService` | Velopack 기반 GitHub Releases 업데이트 체크. 설치된 빌드만 동작(개발 환경 자동 스킵), 메인 창 첫 가시 시 1회 호출 |
 | Services/AutoStartService.cs | `AutoStartService` | `HKCU\...\Run\ffnote` 레지스트리 R/W. `Enable()`/`Disable()`/`IsEnabled` |
