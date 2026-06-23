@@ -32,6 +32,10 @@ public partial class MainWindow : Window
     private bool _marqueeActive;
     private Point _marqueeStart;
 
+    // 카메라 오토팬 추적
+    private double _autoPanDirX, _autoPanDirY;
+    private DispatcherTimer? _autoPanIndicatorTimer;
+
     // 우클릭 down 시점의 원본 visual을 저장해 up 시 컨텍스트 메뉴 대상 식별에 사용.
     // 캔버스가 마우스 캡처 후 MouseRightButtonUp의 OriginalSource는 캔버스로 바뀌므로
     // down 시점에 저장해야 노트/그룹을 정확히 식별 가능.
@@ -413,7 +417,14 @@ public partial class MainWindow : Window
         else if (p.X > vw - zone) dx = -((p.X - (vw - zone)) / zone) * maxSpeed;
         if (p.Y < zone) dy = (zone - p.Y) / zone * maxSpeed;
         else if (p.Y > vh - zone) dy = -((p.Y - (vh - zone)) / zone) * maxSpeed;
-        if (dx == 0 && dy == 0) return false;
+        if (dx == 0 && dy == 0)
+        {
+            _autoPanDirX = _autoPanDirY = 0;
+            return false;
+        }
+        // 이동 방향 추적 (표식 표시용)
+        _autoPanDirX = dx != 0 ? (dx > 0 ? 1 : -1) : 0;
+        _autoPanDirY = dy != 0 ? (dy > 0 ? 1 : -1) : 0;
         // 침투 비율이 1을 넘지 않도록 클램프 (모서리 밖으로 멀리 나가도 속도 폭주 방지)
         CanvasTranslate.X += Math.Clamp(dx, -maxSpeed, maxSpeed);
         CanvasTranslate.Y += Math.Clamp(dy, -maxSpeed, maxSpeed);
@@ -479,13 +490,18 @@ public partial class MainWindow : Window
 
     private void CanvasArea_MouseMove(object sender, MouseEventArgs e)
     {
+        var screenPos = e.GetPosition(CanvasArea);
+        var (worldX, worldY) = ScreenToWorld(screenPos);
+
+        // 마우스 좌표 업데이트
+        MouseCoordLabel.Text = $"X: {(int)Math.Round(worldX)} Y: {(int)Math.Round(worldY)}";
+
         if (_marqueeActive)
         {
-            var p = e.GetPosition(CanvasArea);
-            var x = Math.Min(p.X, _marqueeStart.X);
-            var y = Math.Min(p.Y, _marqueeStart.Y);
-            var w = Math.Abs(p.X - _marqueeStart.X);
-            var h = Math.Abs(p.Y - _marqueeStart.Y);
+            var x = Math.Min(screenPos.X, _marqueeStart.X);
+            var y = Math.Min(screenPos.Y, _marqueeStart.Y);
+            var w = Math.Abs(screenPos.X - _marqueeStart.X);
+            var h = Math.Abs(screenPos.Y - _marqueeStart.Y);
             MarqueeRect.Margin = new Thickness(x, y, 0, 0);
             MarqueeRect.Width = w;
             MarqueeRect.Height = h;
@@ -494,9 +510,8 @@ public partial class MainWindow : Window
         }
 
         if (_panButton is null) return;
-        var pos = e.GetPosition(CanvasArea);
-        var dx = pos.X - _panStart.X;
-        var dy = pos.Y - _panStart.Y;
+        var dx = screenPos.X - _panStart.X;
+        var dy = screenPos.Y - _panStart.Y;
 
         if (!_panMoved)
         {
@@ -850,6 +865,7 @@ public partial class MainWindow : Window
     // ───────────────────────── 미니맵 ─────────────────────────
     private DispatcherTimer? _minimapTimer;
     private double _mmScale = 1, _mmOx, _mmOy;
+    private const double MinimapWorldMin = -5000, MinimapWorldMax = 5000;
     private bool _minimapDragging;
 
     private void MinimapToggle_Click(object sender, RoutedEventArgs e)
@@ -876,6 +892,46 @@ public partial class MainWindow : Window
         return t;
     }
 
+    public void UpdateAutoPanIndicator()
+    {
+        if (_autoPanDirX == 0 && _autoPanDirY == 0)
+        {
+            AutoPanIndicator.Visibility = Visibility.Collapsed;
+            _autoPanIndicatorTimer?.Stop();
+            return;
+        }
+
+        AutoPanIndicator.Visibility = Visibility.Visible;
+        string arrow = (_autoPanDirX, _autoPanDirY) switch
+        {
+            (0, -1) => "↑",
+            (0, 1) => "↓",
+            (-1, 0) => "←",
+            (1, 0) => "→",
+            (1, -1) => "↗",
+            (1, 1) => "↘",
+            (-1, -1) => "↖",
+            (-1, 1) => "↙",
+            _ => "→"
+        };
+        AutoPanText.Text = $"{arrow} 화면 이동 중";
+
+        _autoPanIndicatorTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        _autoPanIndicatorTimer.Stop();
+        _autoPanIndicatorTimer.Tick -= AutoPanIndicatorTimer_Tick;
+        _autoPanIndicatorTimer.Tick += AutoPanIndicatorTimer_Tick;
+        _autoPanIndicatorTimer.Start();
+    }
+
+    private void AutoPanIndicatorTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_autoPanDirX == 0 && _autoPanDirY == 0)
+        {
+            AutoPanIndicator.Visibility = Visibility.Collapsed;
+            _autoPanIndicatorTimer?.Stop();
+        }
+    }
+
     private void RefreshMinimap()
     {
         if (MinimapHost.Visibility != Visibility.Visible) return;
@@ -889,24 +945,36 @@ public partial class MainWindow : Window
         var (vx0, vy0) = ScreenToWorld(new Point(0, 0));
         var (vx1, vy1) = ScreenToWorld(new Point(CanvasArea.ActualWidth, CanvasArea.ActualHeight));
 
-        // 전체 경계 = 모든 노트/그룹 + 현재 뷰포트 (뷰포트도 항상 보이도록 포함)
-        double minX = Math.Min(vx0, vx1), minY = Math.Min(vy0, vy1);
-        double maxX = Math.Max(vx0, vx1), maxY = Math.Max(vy0, vy1);
-        bool any = false;
-        void Expand(double x, double y, double w, double h)
+        // 미니맵 중심 고정: 고정된 월드 좌표 범위를 기준으로 표시
+        double minX = MinimapWorldMin, minY = MinimapWorldMin;
+        double maxX = MinimapWorldMax, maxY = MinimapWorldMax;
+
+        // 노트/그룹이 고정 범위를 벗어나면 범위 확장 (중심은 유지)
+        double centerX = (minX + maxX) / 2, centerY = (minY + maxY) / 2;
+        double halfW = (maxX - minX) / 2, halfH = (maxY - minY) / 2;
+
+        void ExpandIfNeeded(double x, double y, double w, double h)
         {
-            any = true;
-            if (x < minX) minX = x; if (y < minY) minY = y;
-            if (x + w > maxX) maxX = x + w; if (y + h > maxY) maxY = y + h;
+            double l = x, t = y, r = x + w, b = y + h;
+            if (l < minX || r > maxX)
+            {
+                double newHalf = Math.Max(halfW, Math.Max(Math.Abs(l - centerX), Math.Abs(r - centerX)));
+                minX = centerX - newHalf;
+                maxX = centerX + newHalf;
+                halfW = newHalf;
+            }
+            if (t < minY || b > maxY)
+            {
+                double newHalf = Math.Max(halfH, Math.Max(Math.Abs(t - centerY), Math.Abs(b - centerY)));
+                minY = centerY - newHalf;
+                maxY = centerY + newHalf;
+                halfH = newHalf;
+            }
         }
-        foreach (var n in nb.Notes) Expand(n.X, n.Y, n.Width, n.Height);
-        foreach (var g in nb.Groups) Expand(g.X, g.Y, g.Width, g.Height);
-        if (!any && nb.Notes.Count == 0 && nb.Groups.Count == 0) { /* 빈 노트북: 뷰포트만 */ }
+        foreach (var n in nb.Notes) ExpandIfNeeded(n.X, n.Y, n.Width, n.Height);
+        foreach (var g in nb.Groups) ExpandIfNeeded(g.X, g.Y, g.Width, g.Height);
 
-        const double pad = 30;
-        minX -= pad; minY -= pad; maxX += pad; maxY += pad;
         double bw = Math.Max(1, maxX - minX), bh = Math.Max(1, maxY - minY);
-
         double scale = Math.Min(cw / bw, ch / bh);
         double ox = (cw - bw * scale) / 2 - minX * scale;
         double oy = (ch - bh * scale) / 2 - minY * scale;

@@ -211,6 +211,7 @@ public partial class DraggableNoteControl : UserControl
                 // 가장자리면 화면을 이동시킨 뒤(=캔버스가 움직임) 노트 위치를 재계산해
                 // 노트가 커서를 따라 새 영역으로 끌려가도록 한다.
                 mw.AutoPanForDrag(Mouse.GetPosition(mw.CanvasArea));
+                mw.UpdateAutoPanIndicator();
             }
             ApplyDrag();
         };
