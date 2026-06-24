@@ -892,8 +892,9 @@ public partial class MainWindow : Window
         return t;
     }
 
-    public void UpdateAutoPanIndicator()
+    public void UpdateAutoPanIndicator(bool forceReset = false)
     {
+        if (forceReset) _autoPanDirX = _autoPanDirY = 0;
         if (_autoPanDirX == 0 && _autoPanDirY == 0)
         {
             AutoPanIndicator.Visibility = Visibility.Collapsed;

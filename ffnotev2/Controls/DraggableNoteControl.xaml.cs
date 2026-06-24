@@ -260,8 +260,8 @@ public partial class DraggableNoteControl : UserControl
         if (!_isDragging) return;
         _isDragging = false;
         StopDragTimer();
-        // 인디케이터 정리: 드래그 종료 시 auto-pan 표식이 남아있지 않도록
-        if (Window.GetWindow(this) is MainWindow mw) mw.UpdateAutoPanIndicator();
+        // 인디케이터 정리: 드래그 종료 시 auto-pan 방향 강제 리셋 후 인디케이터 숨김
+        if (Window.GetWindow(this) is MainWindow mw) mw.UpdateAutoPanIndicator(forceReset: true);
         ((UIElement)sender).ReleaseMouseCapture();
         // 변경된 항목만 Undo 스택에 등록 (실제 위치가 바뀐 경우만)
         var changes = new List<(Services.ItemSnapshot Old, Services.ItemSnapshot New)>();
