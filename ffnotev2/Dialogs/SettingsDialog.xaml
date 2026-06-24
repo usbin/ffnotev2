@@ -121,6 +121,12 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
+                <!-- 캔버스 옵션 -->
+                <TextBlock Text="캔버스" FontWeight="Bold" Margin="0,0,0,6"/>
+                <Border BorderBrush="#FFDDDDDD" BorderThickness="1" CornerRadius="3" Padding="10" Background="#FFFAFAFA" Margin="0,0,0,12">
+                    <CheckBox x:Name="EnableAutoPanCheck" Content="가장자리 드래그로 화면 자동 스크롤"/>
+                </Border>
+
                 <TextBlock Text="기본 단축키 (변경 불가, 참고용)" FontWeight="Bold" Margin="0,16,0,6"/>
                 <Border BorderBrush="#FFDDDDDD" BorderThickness="1" CornerRadius="3" Padding="10" Background="#FFFAFAFA">
                     <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#FF555555">

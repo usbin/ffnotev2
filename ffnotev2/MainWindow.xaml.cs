@@ -408,6 +408,9 @@ public partial class MainWindow : Window
     /// </summary>
     public bool AutoPanForDrag(Point p)
     {
+        var settings = (App.Current as App)?.SettingsService?.Settings;
+        if (settings?.EnableAutoPanForDrag != true) return false;
+
         double vw = CanvasArea.ActualWidth, vh = CanvasArea.ActualHeight;
         if (vw <= 0 || vh <= 0) return false;
         const double zone = 56;      // 가장자리 감지 폭(px)

@@ -32,6 +32,7 @@ public partial class SettingsDialog : Window
             ShowLineNumbers = current.ShowLineNumbers,
             EditorMonospace = current.EditorMonospace,
             AutoStartOnLogin = current.AutoStartOnLogin,
+            EnableAutoPanForDrag = current.EnableAutoPanForDrag,
         };
 
         // 폰트 콤보
@@ -52,6 +53,7 @@ public partial class SettingsDialog : Window
         ShowLineNumbersCheck.IsChecked = _working.ShowLineNumbers;
         EditorMonospaceCheck.IsChecked = _working.EditorMonospace;
         AutoStartCheck.IsChecked = _working.AutoStartOnLogin;
+        EnableAutoPanCheck.IsChecked = _working.EnableAutoPanForDrag;
 
         RefreshAllBoxes();
         UpdatePreview();
@@ -179,6 +181,7 @@ public partial class SettingsDialog : Window
         _working.NoteFontSize = def.NoteFontSize;
         _working.ShowLineNumbers = def.ShowLineNumbers;
         _working.EditorMonospace = def.EditorMonospace;
+        _working.EnableAutoPanForDrag = def.EnableAutoPanForDrag;
         // AutoStart는 시스템 상태 — 기본값으로 강제 변경하지 않음 (사용자가 직접 토글)
 
         BuildNotebookEntries();
@@ -188,6 +191,7 @@ public partial class SettingsDialog : Window
         SizeSlider.Value = _working.NoteFontSize;
         ShowLineNumbersCheck.IsChecked = _working.ShowLineNumbers;
         EditorMonospaceCheck.IsChecked = _working.EditorMonospace;
+        EnableAutoPanCheck.IsChecked = _working.EnableAutoPanForDrag;
         RefreshAllBoxes();
         UpdatePreview();
     }
@@ -199,6 +203,7 @@ public partial class SettingsDialog : Window
         _working.ShowLineNumbers = ShowLineNumbersCheck.IsChecked == true;
         _working.EditorMonospace = EditorMonospaceCheck.IsChecked == true;
         _working.AutoStartOnLogin = AutoStartCheck.IsChecked == true;
+        _working.EnableAutoPanForDrag = EnableAutoPanCheck.IsChecked == true;
         DialogResult = true;
         Close();
     }
